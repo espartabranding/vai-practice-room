@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vai Practice Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap">
+<style>
+/* Templo: o Olho da Providência em tela cheia; painéis de vidro escuro com filetes dourados por cima
+   (teoria à esquerda, metrônomo à direita) e o braço da guitarra semitransparente embaixo. Visual único, escuro. */
+:root {
+  --bg: #0b0613; --glass: rgba(14, 7, 24, .66); --glass2: rgba(34, 18, 48, .72);
+  --gold: #f2c14e; --gold-hi: #fff1c2; --gold-deep: #b9862a; --gold-line: rgba(242, 193, 78, .42);
+  --text: #f4ead6; --muted: #cbb9a0; --violet: #c79bff;
+  --display: 'Cinzel', 'Trajan Pro', Georgia, serif; --body: 'Cormorant Garamond', Georgia, serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 17px; overflow: hidden; }
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.glass { background: var(--glass); border: 1px solid var(--gold-line); border-radius: 4px; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+  box-shadow: 0 0 0 3px rgba(11, 6, 19, .5), 0 0 0 4px rgba(242, 193, 78, .16), 0 10px 40px rgba(0, 0, 0, .45); }
+h2 { font-family: var(--display); font-size: 12px; letter-spacing: 3px; color: var(--gold); margin: 0 0 12px; font-weight: 600; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+h2::before, h2::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-line), transparent); }
+button, select, input[type=number] {
+  font-family: var(--display); font-size: 12px; letter-spacing: 1px; color: var(--text); background: var(--glass2);
+  border: 1px solid var(--gold-line); border-radius: 3px; padding: 6px 9px;
+}
+button { cursor: pointer; font-weight: 600; }
+button:hover, button:focus-visible, select:focus-visible { border-color: var(--gold); outline: none; box-shadow: 0 0 10px rgba(242, 193, 78, .35); }
+button.primary { background: linear-gradient(#ffe39a, #d99a2b); color: #2a1500; border: 0; padding: 9px 14px; letter-spacing: 2px; }
+button.toggle.on { background: rgba(90, 60, 14, .7); border-color: var(--gold); color: var(--gold-hi); }
+input[type=range] { accent-color: var(--gold); flex: 1; min-width: 80px; }
+input[type=number] { width: 62px; font-family: var(--body); font-size: 15px; }
+.row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.stack { display: flex; flex-direction: column; gap: 9px; }
+label.k { font-family: var(--display); font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+
+#brand { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); display: flex; align-items: center; gap: 12px; z-index: 5; }
+#brand img { height: 34px; filter: drop-shadow(0 0 8px rgba(255, 190, 80, .7)); }
+#brand b { font-family: var(--display); font-size: 14px; letter-spacing: 5px; color: var(--gold-hi); text-shadow: 0 0 12px rgba(0, 0, 0, .9); font-weight: 600; }
+
+#theory { position: fixed; top: calc(66px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); width: 310px; max-height: calc(100% - var(--fretH, 240px) - 86px); overflow: auto; padding: 14px; z-index: 5; }
+#theory .name { font-family: var(--display); font-size: 19px; color: var(--gold-hi); margin: 12px 0 4px; letter-spacing: 1px; }
+#theory .tag { font-style: italic; color: var(--gold); margin-bottom: 10px; }
+#theory .formula { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
+#theory .formula span { font-family: var(--display); font-size: 12px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%;
+  border: 1.5px solid var(--gold); color: var(--gold-hi); background: rgba(20, 10, 30, .7); }
+#theory .formula span.r { background: radial-gradient(circle at 35% 30%, #fff3c4, #f2c14e 55%, #a8741f); color: #2a1500; border-color: #fff1c2; }
+#theory .formula span.rel { background: radial-gradient(circle at 35% 30%, #f6d68a, #c9902c 60%, #7d5214); color: #2a1500; box-shadow: 0 0 0 2px rgba(11,6,19,.9), 0 0 0 3.5px var(--gold); }
+#theory .formula span.c { color: var(--violet); border-color: var(--violet); }
+.tonics { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; margin-bottom: 12px; padding: 10px; border: 1px solid var(--gold-line); border-radius: 3px; background: rgba(242, 193, 78, .05); }
+.tonics i { width: 18px; height: 18px; border-radius: 50%; display: block; }
+.tonics i.r { background: radial-gradient(circle at 35% 30%, #fff3c4, #f2c14e 55%, #a8741f); }
+.tonics i.rel { background: radial-gradient(circle at 35% 30%, #f6d68a, #c9902c 60%, #7d5214); box-shadow: 0 0 0 2px rgba(11,6,19,.9), 0 0 0 3px var(--gold); }
+.tonics b { font-family: var(--display); color: var(--gold-hi); font-weight: 600; }
+.tonics small { color: var(--muted); font-style: italic; font-size: 15px; }
+#theory p { line-height: 1.38; margin: 0 0 8px; }
+#theory p b { font-family: var(--display); font-size: 12px; letter-spacing: 1px; color: var(--gold); font-weight: 600; margin-right: 4px; }
+#theory .tip { border-left: 1px solid var(--gold); padding-left: 10px; font-style: italic; color: var(--gold-hi); }
+
+#metro { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: 250px; padding: 14px; z-index: 5; }
+#metro .bpm { font-family: var(--display); font-size: 34px; color: var(--gold-hi); text-shadow: 0 0 16px rgba(255, 180, 60, .7); text-align: center; margin: 0; font-variant-numeric: tabular-nums; }
+#metro .bpm small { font-size: 11px; letter-spacing: 3px; color: var(--muted); }
+.beats { display: flex; justify-content: center; gap: 10px; margin: 8px 0 12px; }
+.beats i { width: 12px; height: 12px; transform: rotate(45deg); border: 1px solid var(--gold); background: transparent; }
+.beats i.on { background: var(--gold); box-shadow: 0 0 12px var(--gold); }
+.beats i.on.acc { background: var(--gold-hi); box-shadow: 0 0 18px #fff0b0; }
+.bgtrack { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--gold-line); }
+.bgnow { margin-top: 9px; font-size: 15px; color: var(--muted); }
+.bgnow b { font-family: var(--display); color: var(--gold-hi); font-size: 17px; font-weight: 600; }
+.modemap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 4px 0 6px; }
+.modemap button { padding: 6px 0 5px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 13px; background: rgba(20, 10, 30, .7); }
+.modemap button small { font-family: var(--body); font-size: 12px; font-style: italic; letter-spacing: 0; color: var(--muted); font-weight: 500; }
+.modemap button.parent { box-shadow: inset 0 0 0 1px var(--gold); }
+.modemap button.cur { background: radial-gradient(circle at 35% 30%, #fff3c4, #f2c14e 55%, #a8741f); color: #2a1500; border-color: #fff1c2; }
+.modemap button.cur small { color: #3a2200; }
+.maphint { font-size: 15px; line-height: 1.35; margin: 0 0 12px; color: var(--muted); }
+.maphint b { color: var(--gold-hi); font-family: var(--display); font-size: 13px; font-weight: 600; }
+details summary { cursor: pointer; font-family: var(--display); font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+details[open] summary { margin-bottom: 8px; }
+
+#fretbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(to top, rgba(11, 6, 19, .82), rgba(11, 6, 19, .3)); border-top: 1px solid var(--gold-line); }
+#fretbar .row.ctl { margin-bottom: 8px; }
+#fretbar .now { margin-left: auto; font-family: var(--display); font-size: 15px; letter-spacing: 2px; color: var(--gold-hi); min-width: 110px; text-align: right; }
+.fretscroll { overflow-x: auto; }
+#fret { display: block; width: 100%; min-width: 720px; height: auto; cursor: pointer; touch-action: manipulation; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--muted); margin-top: 4px; align-items: center; }
+.legend i { display: inline-block; width: 13px; height: 13px; border-radius: 50%; vertical-align: -2px; margin-right: 5px; }
+.legend i.r { background: radial-gradient(circle at 35% 30%, #fff3c4, #f2c14e 55%, #a8741f); }
+.legend i.rel { background: radial-gradient(circle at 35% 30%, #f6d68a, #c9902c 60%, #7d5214); box-shadow: 0 0 0 1.5px rgba(11,6,19,.9), 0 0 0 2.5px var(--gold); }
+.legend i.n { border: 1.5px solid var(--gold); background: rgba(20, 10, 30, .7); }
+.legend i.c { border: 1.5px solid var(--violet); background: rgba(20, 10, 30, .7); }
+.legend span.keys { margin-left: auto; }
+
+#theoryBtn { display: none; }
+@media (max-width: 900px) {
+  #theory { display: none; width: auto; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(110px + env(safe-area-inset-top, 0px)); }
+  #theory.open { display: block; }
+  #theoryBtn { display: inline-block; }
+  #metro { width: auto; padding: 8px 10px; }
+  #metro h2, #metro .beats { display: none; }
+  #metro .bpm { font-size: 18px; margin: 0 0 6px; cursor: pointer; }
+  #metro .bpm::after { content: ' ▾'; font-size: 10px; color: var(--muted); }
+  #metro:not(.open) .more { display: none; }
+  #metro.open { width: 230px; }
+  #brand b { display: none; }
+  .legend span.keys { display: none; }
+}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="brand"><img src="assets/vai-logo-gold.png" alt="Vai"><b>PRACTICE ROOM</b> <button id="theoryBtn">Theory</button></div>
+
+<div id="theory" class="glass">
+  <h2>Scale &amp; Theory</h2>
+  <div class="row"><select id="key" aria-label="Key"></select><select id="scale" aria-label="Scale"></select></div>
+  <div id="theoryBody"></div>
+</div>
+
+<div id="metro" class="glass">
+  <div class="bgtrack"><h2>Background</h2>
+    <div class="row"><button class="primary" id="padOn">▶ Play</button><input type="range" id="padVol" min="0" max="100" value="50" aria-label="Background volume"></div>
+    <div class="bgnow" id="bgNow"></div>
+  </div>
+  <h2>Metronome</h2>
+  <div class="bpm"><span id="bpmShow">60</span> <small>BPM</small></div>
+  <div class="beats" id="beats"></div>
+  <div class="stack">
+    <div class="row"><button class="primary" id="play">▶ Start</button><button id="tap">Tap</button><button class="toggle on" id="clickOn">Bell</button></div>
+    <div class="stack more">
+      <input type="range" id="bpm" min="0" max="100" value="60" aria-label="Tempo">
+      <div class="row">
+        <select id="sig" aria-label="Time signature"><option value="4">4/4</option><option value="3">3/4</option><option value="6">6/8</option><option value="5">5/4</option><option value="7">7/8</option></select>
+        <select id="subdiv" aria-label="Note value"><option value="1">Quarters</option><option value="2" selected>Eighths</option><option value="3">Triplets</option><option value="4">16ths</option></select>
+      </div>
+      <details>
+        <summary>Speed builder</summary>
+        <div class="stack">
+          <div class="row"><button class="toggle" id="builder">Off</button></div>
+          <div class="row"><label class="k">add</label><input type="number" id="bStep" value="4" min="1" max="20"> BPM</div>
+          <div class="row"><label class="k">every</label><input type="number" id="bBars" value="4" min="1" max="32"> bars</div>
+          <div class="row"><label class="k">up to</label><input type="number" id="bMax" value="100" min="1" max="100"> BPM</div>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<div id="fretbar">
+  <div class="row ctl">
+    <button class="primary" id="playEx">▶ Play exercise</button>
+    <select id="exType" aria-label="Exercise">
+      <option value="scale">Scale run</option>
+      <option value="sweep5">Sweep arpeggio · 5 strings</option>
+      <option value="sweep3">Sweep arpeggio · 3 strings</option>
+    </select>
+    <select id="pattern" aria-label="Pattern"><option value="1">Straight</option><option value="3">Groups of 3</option><option value="4">Groups of 4</option></select>
+    <select id="degree" aria-label="Arpeggio degree" hidden></select>
+    <label class="k" for="pos">Position</label><input type="range" id="pos" min="0" max="12" value="5"><span id="posShow" class="k">fret 5</span>
+    <select id="view" aria-label="Fretboard view">
+      <option value="full">View: whole scale</option>
+      <option value="tonics">View: tonics only</option>
+      <option value="box">View: position box</option>
+      <option value="chord">View: background chord</option>
+      <option value="parallel">View: changes vs major</option>
+      <option value="modes">View: mode names</option>
+    </select>
+    <select id="labels" aria-label="Labels"><option value="deg">Degrees</option><option value="note">Notes</option></select>
+    <select id="sound" aria-label="Sound"><option value="nylon">Sound: classical nylon</option><option value="glass">Sound: glass</option><option value="felt">Sound: felt keys</option><option value="harp">Sound: soft harp</option></select>
+    <span class="now" id="now"></span>
+  </div>
+  <div class="fretscroll"><svg id="fret" viewBox="0 0 1200 196" role="img" aria-label="Fretboard"></svg></div>
+  <div class="legend">
+    <span><i class="r"></i>Tonic</span>
+    <span><i class="rel"></i><span id="relLegend">Relative tonic</span></span>
+    <span><i class="n"></i>Scale note</span>
+    <span><i class="c"></i>Color note</span>
+    <span id="viewHint"></span>
+    <span class="keys">Click any fret to hear it · Space metronome · Enter exercise · ↑ ↓ tempo</span>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------------------------
+// Dados musicais (textos de teoria escritos por nós). rel: tônica relativa (intervalo a partir da tônica)
+// ---------------------------------------------------------------------------------------------
+const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const DEG = { 0: '1', 1: 'b2', 2: '2', 3: 'b3', 4: '3', 5: '4', 6: '#4', 7: '5', 8: 'b6', 9: '6', 10: 'b7', 11: '7' };
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+// os sete modos são a mesma escala maior começando em graus diferentes
+const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+const MODE_NAMES = ['Ionian', 'Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'Aeolian', 'Locrian'];
+const MODE_SHORT = ['Ion', 'Dor', 'Phr', 'Lyd', 'Mix', 'Aeo', 'Loc'];
+const SCALES = [
+  { name: 'Lydian', arp: { suf: 'maj7#11', ivs: [0, 4, 7, 11, 6] }, mode: 3, steps: [0, 2, 4, 6, 7, 9, 11], color: 6, vamp: [0, 1], tag: "Steve's favorite mode",
+    rel: { iv: 7, label: 'Parent major', how: '4th mode of' },
+    mood: 'Dreamy, floating, a little magical. Major, but with a raised 4th that never quite lands.',
+    use: 'Over a major chord, especially the I to II major vamp. The II chord is where the #4 lives.',
+    tip: 'Let the #4 ring with a slow, wide vibrato and resolve it up to the 5th. That one note carries the whole color of the mode.' },
+  { name: 'Ionian (Major)', arp: { suf: 'maj7', ivs: [0, 4, 7, 11] }, mode: 0, steps: [0, 2, 4, 5, 7, 9, 11], color: 11, vamp: [0, 3],
+    rel: { iv: 9, label: 'Relative minor', how: 'shares its notes with' , rname: 'minor' },
+    mood: 'Bright, stable, resolved. The reference every other mode is compared to.',
+    use: 'Over major chords and I–IV–V progressions.',
+    tip: 'The 4th clashes with the major chord: pass through it and lean on the 3rd, 5th and 7th.' },
+  { name: 'Dorian', arp: { suf: 'm6', ivs: [0, 3, 7, 9] }, mode: 1, steps: [0, 2, 3, 5, 7, 9, 10], color: 9, vamp: [0, 3],
+    rel: { iv: 10, label: 'Parent major', how: '2nd mode of' },
+    mood: 'Minor but hopeful, soulful, a touch of funk.',
+    use: 'Over minor 7th chords and the i to IV vamp.',
+    tip: 'The natural 6th is the color. Bend into it from the 5th to make the minor sound lift.' },
+  { name: 'Phrygian', arp: { suf: 'm(b9)', ivs: [0, 3, 7, 1] }, mode: 2, steps: [0, 1, 3, 5, 7, 8, 10], color: 1, vamp: [0, 1],
+    rel: { iv: 8, label: 'Parent major', how: '3rd mode of' },
+    mood: 'Dark, exotic, Spanish and metal at the same time.',
+    use: 'Over minor chords with a bII, heavy riffs on the low string.',
+    tip: 'Trill between the tonic and the b2. Two notes a half step apart already sound like the mode.' },
+  { name: 'Mixolydian', arp: { suf: '7', ivs: [0, 4, 7, 10] }, mode: 4, steps: [0, 2, 4, 5, 7, 9, 10], color: 10, vamp: [0, 6],
+    rel: { iv: 5, label: 'Parent major', how: '5th mode of' },
+    mood: 'Major with attitude: rock, blues and swagger.',
+    use: 'Over dominant 7th chords and the I to bVII vamp.',
+    tip: 'Mix it with the minor pentatonic: the b7 is the bridge between the two.' },
+  { name: 'Aeolian (Natural minor)', arp: { suf: 'm(b6)', ivs: [0, 3, 7, 8] }, mode: 5, steps: [0, 2, 3, 5, 7, 8, 10], color: 8, vamp: [0, 5],
+    rel: { iv: 3, label: 'Relative major', how: 'shares its notes with', rname: 'major' },
+    mood: 'Sad, epic, cinematic.',
+    use: 'Over minor chords and i to bVI to bVII progressions.',
+    tip: 'The b6 is the tear in the voice. Land on it, then fall to the 5th.' },
+  { name: 'Locrian', arp: { suf: 'm7b5', ivs: [0, 3, 6, 10] }, mode: 6, steps: [0, 1, 3, 5, 6, 8, 10], color: 6, vamp: [0, 1], names: { 6: 'b5' },
+    rel: { iv: 1, label: 'Parent major', how: '7th mode of' },
+    mood: 'Unstable, tense, like the floor is missing.',
+    use: 'Over half-diminished chords (m7b5), or as a short moment of tension.',
+    tip: 'The b5 makes the tonic feel unsafe. Use it for drama, not for a whole solo.' },
+  { name: 'Harmonic minor', arp: { suf: 'm(maj7)', ivs: [0, 3, 7, 11] }, steps: [0, 2, 3, 5, 7, 8, 11], color: 11, vamp: [0, 4],
+    rel: { iv: 3, label: 'Relative major', how: 'is the minor key of', rname: 'major' },
+    mood: 'Neoclassical, mysterious, a little sinister.',
+    use: 'Over a minor key when the V chord is major.',
+    tip: 'The jump from b6 to 7 is the signature. Play it slowly first so the ear learns it.' },
+  { name: 'Melodic minor', arp: { suf: 'm6', ivs: [0, 3, 7, 9] }, steps: [0, 2, 3, 5, 7, 9, 11], color: 9, vamp: [0, 3],
+    rel: { iv: 3, label: 'Relative major', how: 'is the minor key of', rname: 'major' },
+    mood: 'Minor and sophisticated, jazz and fusion.',
+    use: 'Over minor-major 7th chords and modern fusion vamps.',
+    tip: 'Think of it as major with a b3: the 6 and 7 keep it bright while the 3rd stays minor.' },
+  { name: 'Minor pentatonic', arp: { suf: 'm7', ivs: [0, 3, 7, 10] }, steps: [0, 3, 5, 7, 10], color: 10, vamp: null,
+    rel: { iv: 3, label: 'Relative major pentatonic', how: 'shares its notes with', rname: 'major pentatonic' },
+    mood: 'Blues and rock, the first scale almost every guitarist learns.',
+    use: 'Over minor chords, blues and most rock.',
+    tip: 'Five notes, no wrong ones. Work on phrasing: bends, slides and space between the notes.' },
+  { name: 'Major pentatonic', arp: { suf: '6', ivs: [0, 4, 7, 9] }, steps: [0, 2, 4, 7, 9], color: 9, vamp: null,
+    rel: { iv: 9, label: 'Relative minor pentatonic', how: 'shares its notes with', rname: 'minor pentatonic' },
+    mood: 'Sweet, country, open.',
+    use: 'Over major chords and happy progressions.',
+    tip: 'Slide into the 3rd from the 2nd: that move is the sound of the scale.' },
+  { name: 'Whole tone', arp: { suf: '7#5', ivs: [0, 4, 8, 10] }, steps: [0, 2, 4, 6, 8, 10], color: 8, vamp: null, names: { 8: '#5' }, rel: null,
+    mood: 'Floating, dreamlike, no gravity at all.',
+    use: 'Over augmented chords and for surreal, weightless moments.',
+    tip: 'Every note is the same distance apart, so there is no relative key: any note can act as the tonic.' },
+  { name: 'Diminished (half-whole)', arp: { suf: '7(b9)', ivs: [0, 4, 7, 10, 1] }, steps: [0, 1, 3, 4, 6, 7, 9, 10], color: 1, vamp: null, names: { 3: '#2' }, rel: null,
+    mood: 'Tense and symmetrical, perfect for angular lines.',
+    use: 'Over dominant 7b9 chords.',
+    tip: 'The pattern repeats every three frets, so the tonic is felt from the chord underneath, not from the scale.' },
+];
+const TUNING = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4, corda grave primeiro
+const FRETS = 17;
+
+const S = { view: 'full', sound: 'nylon', bpm: 60, beats: 4, subdiv: 2, running: false, key: 4, scale: SCALES[0], labels: 'deg', pos: 5,
+  click: true, exOn: false, exType: 'scale', pattern: 1, degree: -2, padOn: false, builder: false };
+const $ = id => document.getElementById(id);
+const mod12 = n => ((n % 12) + 12) % 12;
+const deg = (iv, sc = S.scale) => (sc.names && sc.names[iv]) || DEG[iv];
+const inScale = m => S.scale.steps.includes(mod12(m - S.key));
+const relIv = () => S.scale.rel ? S.scale.rel.iv : null;
+
+// ---------------------------------------------------------------------------------------------
+// Áudio: harpa de ataque suave, sino macio no metrônomo, teclado de fundo aveludado, reverb longo
+// ---------------------------------------------------------------------------------------------
+let ctx = null, master = null, padBus = null, nextTime = 0, tick = 0, timer = null;
+const visualQueue = [];
+const harpCache = new Map();
+function audio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -20; comp.ratio.value = 3; comp.connect(ctx.destination);
+    master = ctx.createGain(); master.gain.value = 0.8; master.connect(comp);
+    const conv = ctx.createConvolver(), len = ctx.sampleRate * 4, ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+    conv.buffer = ir; const wet = ctx.createGain(); wet.gain.value = 0.5; conv.connect(wet); wet.connect(comp);
+    master.connect(conv);
+    padBus = ctx.createGain(); padBus.gain.value = padLevel(); padBus.connect(master);
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+// harpa: corda de Karplus-Strong excitada por um pulso macio (ruído filtrado várias vezes), decaimento longo
+function harpBuffer(midi) {
+  if (harpCache.has(midi)) return harpCache.get(midi);
+  const sr = ctx.sampleRate, len = Math.floor(sr * 3), buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  const N = Math.max(2, Math.round(sr / mtof(midi)));
+  for (let i = 0; i < N; i++) d[i] = Math.random() * 2 - 1;
+  for (let pass = 0; pass < 4; pass++) for (let i = 1; i < N; i++) d[i] = (d[i] + d[i - 1]) * 0.5; // pulso macio, sem estalo
+  const fb = 0.9985 - Math.max(0, midi - 64) * 0.0002;
+  for (let i = N; i < len; i++) d[i] = fb * 0.5 * (d[i - N] + d[i - N + 1]);
+  let mx = 0; for (let i = 0; i < len; i++) mx = Math.max(mx, Math.abs(d[i]));
+  for (let i = 0; i < len; i++) d[i] /= mx || 1;
+  harpCache.set(midi, buf); return buf;
+}
+function harp(midi, t, vol = 0.45, dur = 2.6) {
+  const src = ctx.createBufferSource(); src.buffer = harpBuffer(midi);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400; lp.Q.value = 0.3;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.035); // ataque suave
+  g.gain.setTargetAtTime(0.0001, t + 0.06, dur / 4);
+  src.connect(lp); lp.connect(g); g.connect(master);
+  const body = ctx.createOscillator(), bg2 = ctx.createGain(); // um seno baixinho dá corpo à nota
+  body.type = 'sine'; body.frequency.value = mtof(midi);
+  bg2.gain.setValueAtTime(0.0001, t); bg2.gain.linearRampToValueAtTime(vol * 0.18, t + 0.05); bg2.gain.setTargetAtTime(0.0001, t + 0.1, dur / 5);
+  body.connect(bg2); bg2.connect(master);
+  src.start(t); src.stop(t + dur + 1); body.start(t); body.stop(t + dur + 1);
+}
+// timbres macios: glass (senos puros, o mais suave), felt keys (teclado abafado) e soft harp (harpa filtrada)
+// violão de nylon abafado: corda dedilhada perto do meio (menos harmônicos agudos), perda de brilho dentro da corda
+// a cada volta, ressonância de caixa nos graves e corte forte dos agudos
+const nylonCache = new Map();
+function nylonBuffer(midi) {
+  if (nylonCache.has(midi)) return nylonCache.get(midi);
+  const sr = ctx.sampleRate, len = Math.floor(sr * 2.6), buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  const N = Math.max(3, Math.round(sr / mtof(midi)));
+  for (let i = 0; i < N; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / N); // pulso arredondado
+  for (let pass = 0; pass < 6; pass++) for (let i = 1; i < N; i++) d[i] = (d[i] + d[i - 1]) * 0.5; // tira o "ataque de palheta"
+  const P = Math.round(N * 0.3); for (let i = N - 1; i >= P; i--) d[i] -= 0.6 * d[i - P]; // posição do dedo: perto do meio da corda
+  const fb = 0.9965 - Math.max(0, midi - 40) * 0.00007;
+  for (let i = N + 1; i < len; i++) d[i] = fb * (0.25 * d[i - N - 1] + 0.5 * d[i - N] + 0.25 * d[i - N + 1]); // laço escuro (3 pontos)
+  let mx = 0; for (let i = 0; i < len; i++) mx = Math.max(mx, Math.abs(d[i]));
+  for (let i = 0; i < len; i++) d[i] /= mx || 1;
+  nylonCache.set(midi, buf); return buf;
+}
+function tone(midi, t, vol = 0.4, dur = 2.6) {
+  const out = ctx.createGain(); out.connect(master);
+  const f = mtof(midi);
+  if (S.sound === 'nylon') {
+    const src = ctx.createBufferSource(); src.buffer = nylonBuffer(midi);
+    const body = ctx.createBiquadFilter(); body.type = 'peaking'; body.frequency.value = 115; body.Q.value = 1.1; body.gain.value = 5;
+    const body2 = ctx.createBiquadFilter(); body2.type = 'peaking'; body2.frequency.value = 230; body2.Q.value = 1.4; body2.gain.value = 2.5;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(1150, 380 + f * 1.5); lp.Q.value = 0.3;
+    const lp2 = ctx.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 2400; lp.connect(lp2); // segundo corte: some o chiado
+    out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(vol * 1.25, t + 0.016); out.gain.setTargetAtTime(0.0001, t + 0.05, dur / 3);
+    src.connect(body); body.connect(body2); body2.connect(lp); lp2.connect(out); src.start(t); src.stop(t + dur + 1);
+    return;
+  }
+  if (S.sound === 'harp') {
+    const src = ctx.createBufferSource(); src.buffer = harpBuffer(midi);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = 0.2;
+    out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(vol * 0.85, t + 0.06); out.gain.setTargetAtTime(0.0001, t + 0.1, dur / 4);
+    src.connect(lp); lp.connect(out); src.start(t); src.stop(t + dur + 1);
+    const body = ctx.createOscillator(), bgn = ctx.createGain(); body.type = 'sine'; body.frequency.value = f;
+    bgn.gain.value = 0.35; body.connect(bgn); bgn.connect(out); body.start(t); body.stop(t + dur + 1);
+    return;
+  }
+  const parts = S.sound === 'felt' ? [[1, 'triangle', 0.55], [2, 'sine', 0.12], [0.5, 'sine', 0.2]] : [[1, 'sine', 0.8], [2, 'sine', 0.1], [3, 'sine', 0.03]];
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.sound === 'felt' ? 900 : 2200; lp.connect(out);
+  const atk = S.sound === 'felt' ? 0.045 : 0.07;
+  out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(vol, t + atk); out.gain.setTargetAtTime(0.0001, t + atk + 0.05, dur / (S.sound === 'felt' ? 5 : 3.5));
+  parts.forEach(([mult, type, amp]) => { const o = ctx.createOscillator(), g2 = ctx.createGain(); o.type = type; o.frequency.value = f * mult; g2.gain.value = amp; o.connect(g2); g2.connect(lp); o.start(t); o.stop(t + dur + 1); });
+}
+function bell(t, level) { // sino macio no lugar do clique
+  const f = level === 2 ? 1318.5 : level === 1 ? 1046.5 : 784;
+  const v = level === 2 ? 0.11 : level === 1 ? 0.07 : 0.03;
+  [[1, 1], [2.76, 0.25]].forEach(([mult, amp]) => {
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f * mult;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v * amp, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + (mult === 1 ? 0.45 : 0.18));
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.5);
+  });
+}
+const padLevel = () => (+$('padVol').value / 100) * 0.45;
+let padVoices = null, padDeg = null;
+function triad(degIndex, base = 48) {
+  const st = S.scale.steps, n = st.length, root = base + S.key;
+  return [0, 2, 4].map(k => { const i = degIndex + k; return root + st[i % n] + 12 * Math.floor(i / n); });
+}
+function padChord(degIndex, t) { // teclado contínuo: senos e triângulos, ataque e soltura bem lentos
+  if (!ctx) return;
+  t = t || ctx.currentTime;
+  if (padVoices) { const old = padVoices; old.g.gain.cancelScheduledValues(t); old.g.gain.setTargetAtTime(0, t, 1.2); old.oscs.forEach(o => o.stop(t + 8)); }
+  padVoices = null; padDeg = degIndex;
+  updateBgNow();
+  if (!S.padOn) return;
+  const [r, third, fifth] = triad(degIndex, 48);
+  const voices = [r - 12, r, third, fifth, r + 14];
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(1, t, 1.2);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.2;
+  const lfo = ctx.createOscillator(), lfoG = ctx.createGain(); lfo.frequency.value = 0.08; lfoG.gain.value = 180; lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start(t);
+  lp.connect(g); g.connect(padBus);
+  const oscs = [lfo];
+  voices.forEach((m, i) => {
+    [[-4, 'triangle', 0.07], [4, 'sine', 0.09]].forEach(([det, type, vol]) => {
+      const o = ctx.createOscillator(), vg = ctx.createGain(); o.type = type; o.frequency.value = mtof(m); o.detune.value = det;
+      vg.gain.value = vol * (i === 0 ? 0.9 : i === voices.length - 1 ? 0.35 : 1); o.connect(vg); vg.connect(lp); o.start(t); oscs.push(o);
+    });
+  });
+  padVoices = { g, oscs };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Exercícios
+// ---------------------------------------------------------------------------------------------
+let seq = [], seqIdx = 0;
+function scaleNotes() {
+  const out = [];
+  TUNING.forEach((open, s) => { for (let f = S.pos; f <= Math.min(FRETS, S.pos + 5); f++) if (inScale(open + f)) out.push({ s, f, m: open + f }); });
+  out.sort((a, b) => a.m - b.m || a.s - b.s);
+  const uniq = [], seen = new Set();
+  for (const n of out) if (!seen.has(n.m)) { seen.add(n.m); uniq.push(n); }
+  return uniq;
+}
+function grouped(list, g) {
+  if (g === 1) return list.concat(list.slice(1, -1).reverse());
+  const up = [], down = [], rev = list.slice().reverse();
+  for (let i = 0; i + g <= list.length; i++) up.push(...list.slice(i, i + g));
+  for (let i = 1; i + g <= rev.length - 1; i++) down.push(...rev.slice(i, i + g));
+  return up.concat(down);
+}
+// arpejo em sweep: uma nota por corda subindo, mais uma ou duas na corda de cima (dentro do alcance), e volta
+function sweep(degIndex, strings) { return sweepTones(triad(degIndex, 0).map(mod12), degIndex, strings); }
+const modalPcs = () => S.scale.arp.ivs.map(iv => mod12(S.key + iv));
+function sweepTones(pcs, tag, strings) {
+  const tones = new Set(pcs), rootPc = pcs[0];
+  const isTone = m => tones.has(mod12(m));
+  const first = strings[0], lo = Math.max(0, S.pos - 1), hi = Math.min(FRETS, S.pos + 6);
+  let start = null;
+  for (let f = lo; f <= hi && !start; f++) { const m = TUNING[first] + f; if (mod12(m) === rootPc) start = { s: first, f, m }; }
+  for (let f = lo; f <= hi && !start; f++) { const m = TUNING[first] + f; if (isTone(m)) start = { s: first, f, m }; }
+  if (!start) return [];
+  const up = [start]; let prev = start;
+  for (const s of strings.slice(1)) {
+    let best = null;
+    for (let f = Math.max(0, prev.f - 4); f <= Math.min(FRETS, prev.f + 4); f++) {
+      const m = TUNING[s] + f; if (m > prev.m && isTone(m) && (!best || m < best.m)) best = { s, f, m };
+    }
+    if (!best) break;
+    up.push(best); prev = best;
+  }
+  const top = strings[strings.length - 1], minF = Math.min(...up.map(x => x.f));
+  for (let k = 0; k < 2; k++) {
+    let nx = null;
+    for (let f = prev.f + 1; f <= Math.min(FRETS, minF + 5) && !nx; f++) { const m = TUNING[top] + f; if (isTone(m)) nx = { s: top, f, m }; }
+    if (!nx) break; up.push(nx); prev = nx;
+  }
+  return up.concat(up.slice(0, -1).reverse().slice(0, -1)).map(x => ({ ...x, d: tag }));
+}
+function buildSeq() {
+  if (S.exType === 'scale') seq = grouped(scaleNotes(), S.pattern);
+  else {
+    const strings = S.exType === 'sweep5' ? [1, 2, 3, 4, 5] : [3, 4, 5];
+    if (S.degree === -2) seq = sweepTones(modalPcs(), 'm', strings); // arpejo modal, com a nota de cor
+    else if (S.degree >= 0) seq = sweep(S.degree, strings);
+    else { seq = []; for (let d = 0; d < Math.min(S.scale.steps.length, 7); d++) seq.push(...sweep(d, strings)); }
+  }
+  seqIdx = 0;
+  drawFret();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Transporte
+// ---------------------------------------------------------------------------------------------
+let builderBars = 0;
+function schedule() {
+  if (S.bpm < 1) { nextTime = ctx.currentTime + 0.05; return; } // 0 BPM: o tempo fica suspenso até subir de novo
+  while (nextTime < ctx.currentTime + 0.12) {
+    const per = S.subdiv, sub = tick % per, beatAbs = Math.floor(tick / per), beat = beatAbs % S.beats, bar = Math.floor(beatAbs / S.beats);
+    const level = sub === 0 ? (beat === 0 ? 2 : 1) : 0;
+    if (S.click) bell(nextTime, level);
+    let note = null;
+    if (S.exOn && seq.length) { note = seq[seqIdx % seq.length]; seqIdx++; tone(note.m, nextTime, 0.4, 2.6); }
+    if (sub === 0 && beat === 0 && tick > 0 && S.builder && ++builderBars >= +$('bBars').value) { builderBars = 0; setBpm(Math.min(+$('bMax').value, S.bpm + +$('bStep').value)); }
+    visualQueue.push({ time: nextTime, beat, sub, level, note });
+    nextTime += 60 / S.bpm / per; tick++;
+  }
+}
+function start() {
+  audio();
+  S.running = true; tick = 0; builderBars = 0; nextTime = ctx.currentTime + 0.08;
+  timer = setInterval(schedule, 25); schedule();
+  $('play').textContent = '■ Stop';
+}
+function stop() {
+  S.running = false; clearInterval(timer); timer = null; visualQueue.length = 0; active = null; drawFret();
+  S.exOn = false; $('playEx').textContent = '▶ Play exercise'; $('play').textContent = '▶ Start'; $('now').textContent = '';
+}
+function toggleExercise() {
+  if (S.exOn) { stop(); return; }
+  buildSeq(); S.exOn = true; $('playEx').textContent = '■ Stop';
+  if (!S.running) start(); else seqIdx = 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Cena: só o Olho da Providência, respirando e pulsando no tempo
+// ---------------------------------------------------------------------------------------------
+const cv = $('scene'), g = cv.getContext('2d');
+const bg = new Image(); bg.src = 'assets/stage.jpg';
+let W = 0, H = 0, pulse = 0, pulseAcc = false, ring = 0, active = null, flash = 0;
+function resize() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  document.documentElement.style.setProperty('--fretH', $('fretbar').offsetHeight + 'px');
+}
+addEventListener('resize', resize);
+function draw() {
+  const now = ctx ? ctx.currentTime : 0;
+  while (visualQueue.length && visualQueue[0].time <= now) {
+    const ev = visualQueue.shift();
+    if (ev.sub === 0) { pulse = 1; pulseAcc = ev.level === 2; ring = 1; markBeat(ev.beat, ev.level === 2); }
+    if (ev.note) { active = ev.note; flash = 1; drawFret(); showNow(ev.note.m); }
+  }
+  // o olho fica no centro da área livre (acima do braço)
+  const free = H - $('fretbar').offsetHeight;
+  const sc = Math.max(W / 960, free / 400), ox = (W - 960 * sc) / 2, oy = free * 0.46 - 185 * sc;
+  g.fillStyle = '#0b0613'; g.fillRect(0, 0, W, H);
+  if (bg.complete) g.drawImage(bg, ox, oy, 960 * sc, 540 * sc);
+  const ex = 480 * sc + ox, ey = 185 * sc + oy, t = performance.now() / 1000;
+  g.globalCompositeOperation = 'lighter';
+  const breathe = 0.16 + 0.08 * Math.sin(t * 0.9); // respiração lenta, mesmo parado
+  const r0 = 150 * sc;
+  let grd = g.createRadialGradient(ex, ey, 4, ex, ey, r0);
+  grd.addColorStop(0, `rgba(255,240,190,${breathe})`); grd.addColorStop(1, 'rgba(255,170,60,0)');
+  g.fillStyle = grd; g.beginPath(); g.arc(ex, ey, r0, 0, Math.PI * 2); g.fill();
+  if (pulse > 0.01) {
+    const r = (60 + (1 - pulse) * 130) * sc, a = pulse * (pulseAcc ? 0.55 : 0.32) + flash * 0.25;
+    grd = g.createRadialGradient(ex, ey, 6, ex, ey, r);
+    grd.addColorStop(0, `rgba(255,245,210,${a})`); grd.addColorStop(0.55, `rgba(255,195,90,${a * 0.5})`); grd.addColorStop(1, 'rgba(255,150,40,0)');
+    g.fillStyle = grd; g.beginPath(); g.arc(ex, ey, r, 0, Math.PI * 2); g.fill();
+  }
+  if (ring > 0.01) { // anel dourado que se abre a partir do olho a cada batida
+    g.strokeStyle = `rgba(255,214,120,${ring * 0.55})`; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(ex, ey, (120 + (1 - ring) * 260) * sc, 0, Math.PI * 2); g.stroke();
+  }
+  g.globalCompositeOperation = 'source-over';
+  pulse *= 0.92; ring *= 0.95; flash *= 0.9;
+  requestAnimationFrame(draw);
+}
+function markBeat(b, acc) { [...$('beats').children].forEach((el, i) => { el.classList.toggle('on', i === b); el.classList.toggle('acc', i === b && acc); }); }
+function buildBeats() { $('beats').innerHTML = '<i></i>'.repeat(S.beats); }
+function showNow(m) {
+  const iv = mod12(m - S.key);
+  let txt = NOTES[m % 12] + ' · ' + (inScale(m) ? deg(iv) : 'outside');
+  if (iv === 0) txt += ' · tonic'; else if (iv === relIv()) txt += ' · relative';
+  $('now').textContent = txt;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Braço da guitarra: tônica em ouro maciço, tônica relativa em ouro com anel duplo, demais notas com borda dourada
+// ---------------------------------------------------------------------------------------------
+const FB = { x0: 46, x1: 1186, y0: 18, y1: 168 };
+FB.fw = (FB.x1 - FB.x0) / FRETS; FB.sh = (FB.y1 - FB.y0) / 5;
+const fx = f => f === 0 ? FB.x0 - 22 : FB.x0 + (f - 0.5) * FB.fw;
+const sy = s => FB.y1 - s * FB.sh;
+function drawFret() {
+  const curD = active && active.d !== undefined && S.exOn ? active.d : (S.degree === -2 ? 'm' : S.degree >= 0 ? S.degree : 0);
+  const arpOn = S.exType !== 'scale';
+  const inSeq = new Set(arpOn ? seq.filter(n => n.d === curD).map(n => n.s + ':' + n.f) : []);
+  const rel = relIv(), view = S.view;
+  // acorde de referência da visão "background chord": o que toca no fundo, ou o grau do arpejo, ou o I
+  const chordD = S.padOn && padDeg !== null ? padDeg : (arpOn ? curD : 0);
+  const modalChord = chordD === 'm';
+  const chordTones = modalChord ? modalPcs() : triad(chordD, 0).map(mod12);
+  const chordRole = modalChord ? S.scale.arp.ivs.map(iv => deg(iv)) : ['R', '3', '5'];
+  const inBox = f => f >= S.pos && f <= S.pos + 5;
+  const parentPc = S.scale.mode !== undefined ? mod12(S.key - MAJOR[S.scale.mode]) : null;
+  let o = `<defs>
+    <radialGradient id="gTonic" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#fff3c4"/><stop offset=".55" stop-color="#f2c14e"/><stop offset="1" stop-color="#a8741f"/></radialGradient>
+    <radialGradient id="gRel" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#f6d68a"/><stop offset=".6" stop-color="#c9902c"/><stop offset="1" stop-color="#7d5214"/></radialGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>`;
+  o += `<rect x="${FB.x0}" y="${FB.y0 - 9}" width="${FB.x1 - FB.x0}" height="${FB.y1 - FB.y0 + 18}" fill="rgba(20,10,30,.42)" stroke="rgba(242,193,78,.25)"/>`;
+  const wl = S.pos === 0 ? FB.x0 - 34 : FB.x0 + (S.pos - 1) * FB.fw, wr = FB.x0 + Math.min(FRETS, S.pos + 5) * FB.fw;
+  o += `<rect x="${wl}" y="${FB.y0 - 9}" width="${wr - wl}" height="${FB.y1 - FB.y0 + 18}" fill="rgba(242,193,78,.06)" stroke="rgba(242,193,78,.5)" stroke-dasharray="2 5"/>`;
+  for (let f = 0; f <= FRETS; f++) o += `<line x1="${FB.x0 + f * FB.fw}" y1="${FB.y0 - 9}" x2="${FB.x0 + f * FB.fw}" y2="${FB.y1 + 9}" stroke="${f === 0 ? 'rgba(255,236,190,.85)' : 'rgba(242,193,78,.28)'}" stroke-width="${f === 0 ? 5 : 1.5}"/>`;
+  // marcações do braço como pequenos losangos
+  const dia = (x, y) => `<path d="M${x} ${y - 5}L${x + 5} ${y}L${x} ${y + 5}L${x - 5} ${y}Z" fill="rgba(242,193,78,.28)"/>`;
+  [3, 5, 7, 9, 15, 17].forEach(f => o += dia(FB.x0 + (f - 0.5) * FB.fw, (FB.y0 + FB.y1) / 2));
+  [-1, 1].forEach(d => o += dia(FB.x0 + 11.5 * FB.fw, (FB.y0 + FB.y1) / 2 + d * FB.sh));
+  for (let s = 0; s < 6; s++) o += `<line x1="${FB.x0 - 34}" y1="${sy(s)}" x2="${FB.x1}" y2="${sy(s)}" stroke="rgba(236,226,206,.55)" stroke-width="${2.2 - s * 0.25}"/>`;
+  for (let f = 1; f <= FRETS; f++) o += `<text x="${FB.x0 + (f - 0.5) * FB.fw}" y="190" fill="rgba(242,214,150,.7)" font-size="12" text-anchor="middle" font-family="Cinzel">${f}</text>`;
+  TUNING.forEach((open, s) => {
+    for (let f = 0; f <= FRETS; f++) {
+      const m = open + f, iv = mod12(m - S.key);
+      if (!S.scale.steps.includes(iv)) continue;
+      const isRoot = iv === 0, isRel = iv === rel, isColor = iv === S.scale.color;
+      const act = active && active.s === s && active.f === f, arp = inSeq.has(s + ':' + f);
+      let dim = arpOn && !arp && !act;
+      let label = S.labels === 'deg' ? deg(iv) : NOTES[m % 12];
+      let hide = false, altered = false;
+      if (view === 'tonics') hide = !isRoot && !isRel && !act;
+      else if (view === 'box') hide = !inBox(f) && !act; // a caixa mostra só a posição
+      else if (view === 'chord') { const ci = chordTones.indexOf(mod12(m)); if (ci < 0) dim = !act; else label = chordRole[ci]; }
+      else if (view === 'parallel') { altered = !MAJOR.includes(iv); dim = dim || (!altered && !isRoot); }
+      else if (view === 'modes' && parentPc !== null) { const k = MAJOR.indexOf(mod12(m - parentPc)); if (k >= 0) label = MODE_SHORT[k]; }
+      if (hide) continue;
+      const faded = !inBox(f) && !act && !arp; // fora da posição escolhida: baixa opacidade em qualquer visão
+      const x = fx(f), y = sy(s), r = act ? 14 : 11.5;
+      let shape;
+      if (isRoot) shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#gTonic)" stroke="#fff1c2" stroke-width="1.2"/>`;
+      else if (isRel) shape = `<circle cx="${x}" cy="${y}" r="${r + 3.5}" fill="none" stroke="#f2c14e" stroke-width="1.3"/><circle cx="${x}" cy="${y}" r="${r}" fill="url(#gRel)" stroke="rgba(11,6,19,.9)" stroke-width="1.5"/>`;
+      else if (altered) shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="rgba(160,100,230,.55)" stroke="#e2c8ff" stroke-width="2"/>`;
+      else shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="${arp ? 'rgba(242,193,78,.28)' : 'rgba(18,9,28,.78)'}" stroke="${isColor ? '#c79bff' : '#f2c14e'}" stroke-width="${arp ? 2.4 : 1.6}"/>`;
+      const txt = isRoot || isRel ? '#2a1500' : altered || isColor ? '#f1e4ff' : '#ffe9b0';
+      o += `<g opacity="${faded ? 0.16 : dim ? 0.32 : 1}"${act ? ' filter="url(#glow)"' : ''}>${act ? `<circle cx="${x}" cy="${y}" r="${r + 6}" fill="rgba(255,240,200,.35)"/>` : ''}${shape}
+        <text x="${x}" y="${y + (label.length > 2 ? 3.4 : 4.2)}" font-size="${label.length > 2 ? 8.5 : 11}" font-weight="700" text-anchor="middle" fill="${txt}" font-family="Cinzel">${label}</text></g>`;
+    }
+  });
+  if (view === 'parallel') TUNING.forEach((open, s) => {
+    for (let f = 0; f <= FRETS; f++) {
+      const iv = mod12(open + f - S.key);
+      if (!MAJOR.includes(iv) || S.scale.steps.includes(iv)) continue;
+      o += `<g opacity="${inBox(f) ? 0.85 : 0.16}"><circle cx="${fx(f)}" cy="${sy(s)}" r="10" fill="none" stroke="#f2c14e" stroke-width="1.2" stroke-dasharray="3 3"/>
+        <text x="${fx(f)}" y="${sy(s) + 4}" font-size="10" text-anchor="middle" fill="rgba(242,214,150,.85)" font-family="Cinzel">${DEG[iv]}</text></g>`;
+    }
+  });
+  $('fret').innerHTML = o;
+  const hints = { full: '', tonics: 'Only the home notes: find the tonic and the relative tonic anywhere on the neck.',
+    box: 'One hand position: everything you can reach without shifting.',
+    chord: modalChord ? `Modal arpeggio ${modalName()}: degrees from the tonic, with the color note ${deg(S.scale.color)}.` : `Chord tones of ${chordName(chordD)} (${ROMAN[chordD]}): R = root, 3 = third, 5 = fifth.`,
+    parallel: 'Violet: notes this scale changes. Dashed: where the major scale note would be.',
+    modes: parentPc === null ? 'Mode names work on the seven major modes.' : 'Each note is the start of a different mode of the same parent key.' };
+  $('viewHint').textContent = hints[view];
+}
+$('fret').addEventListener('pointerdown', e => {
+  const svg = $('fret'), pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  const s = Math.round((FB.y1 - p.y) / FB.sh); if (s < 0 || s > 5) return;
+  const f = p.x < FB.x0 ? 0 : Math.min(FRETS, Math.floor((p.x - FB.x0) / FB.fw) + 1);
+  audio(); const m = TUNING[s] + f; tone(m, ctx.currentTime + 0.005, 0.45, 3);
+  active = { s, f, m }; flash = 1; pulse = Math.max(pulse, 0.45); drawFret(); showNow(m);
+});
+
+function chordName(d) { const t = triad(d, 48), th = t[1] - t[0], fi = t[2] - t[0]; return NOTES[t[0] % 12] + (th === 3 ? (fi === 6 ? 'dim' : 'm') : fi === 8 ? 'aug' : ''); }
+function modeMap() { // as 7 notas do tom de origem, com o modo que começa em cada uma
+  const sc = S.scale; if (sc.mode === undefined) return '';
+  const parent = mod12(S.key - MAJOR[sc.mode]);
+  const chips = MAJOR.map((iv, k) => `<button data-k="${k}" class="${k === sc.mode ? 'cur' : ''}${k === 0 ? ' parent' : ''}">${NOTES[(parent + iv) % 12]}<small>${MODE_SHORT[k]}</small></button>`).join('');
+  return `<p class="maphint">Same notes as <b>${NOTES[parent]} major</b>. Starting on <b>${NOTES[S.key]}</b> makes it ${MODE_NAMES[sc.mode]}. Tap a note to hear the same notes as another mode.</p><div class="modemap">${chips}</div>`;
+}
+function vsMajor() { // o que muda em relação à escala maior com a mesma tônica
+  const sc = S.scale, extra = sc.steps.filter(iv => !MAJOR.includes(iv)), missing = MAJOR.filter(iv => !sc.steps.includes(iv));
+  const digit = l => l.replace(/[#b]/g, '');
+  const parts = [], used = new Set();
+  extra.forEach(iv => { const l = deg(iv), mi = missing.find(x => !used.has(x) && digit(DEG[x]) === digit(l)); if (mi !== undefined) { used.add(mi); parts.push(`${l} instead of ${DEG[mi]}`); } else parts.push(`adds ${l}`); });
+  missing.filter(x => !used.has(x)).forEach(x => parts.push(`no ${DEG[x]}`));
+  return `<b>Vs ${NOTES[S.key]} major</b> ${parts.length ? parts.join(' · ') : 'it is the major scale itself'}`;
+}
+const modalName = () => NOTES[S.key] + S.scale.arp.suf;
+function triadHasColor(d) { return triad(d, 0).map(mod12).includes(mod12(S.key + S.scale.color)); }
+function drawTheory() {
+  const sc = S.scale, rel = sc.rel, tonic = NOTES[S.key];
+  const formula = sc.steps.map(iv => `<span class="${iv === 0 ? 'r' : rel && iv === rel.iv ? 'rel' : iv === sc.color ? 'c' : ''}">${deg(iv)}</span>`).join('');
+  const notes = sc.steps.map(iv => NOTES[(S.key + iv) % 12]).join(' · ');
+  const vamp = sc.vamp ? sc.vamp.map(chordName).join(' → ') : chordName(0);
+  let relHtml = '';
+  if (rel) {
+    const rn = NOTES[(S.key + rel.iv) % 12];
+    const sentence = rel.how.endsWith('of') && !rel.rname ? `${tonic} ${sc.name} is the ${rel.how} ${rn} major` : `${tonic} ${sc.name} ${rel.how} ${rn} ${rel.rname}`;
+    relHtml = `<i class="rel"></i><div><b>${rn}</b> · ${rel.label}<br><small>${sentence}</small></div>`;
+    $('relLegend').textContent = `Relative tonic (${rn})`;
+  } else {
+    relHtml = `<span></span><div><small>Symmetrical scale: no relative key.</small></div>`;
+    $('relLegend').textContent = 'Relative tonic';
+  }
+  $('theoryBody').innerHTML = `<div class="name">${tonic} ${sc.name}</div>${sc.tag ? `<div class="tag">${sc.tag}</div>` : ''}
+    <div class="tonics"><i class="r"></i><div><b>${tonic}</b> · Tonic<br><small>home note, where every phrase resolves</small></div>${relHtml}</div>
+    ${modeMap()}
+    <p class="maphint">${vsMajor()}</p>
+    <div class="formula">${formula}</div>
+    <p><b>Notes</b> ${notes}</p>
+    <p><b>Color note</b> ${deg(sc.color)} (${NOTES[(S.key + sc.color) % 12]})</p>
+    <p><b>Modal arpeggio</b> ${modalName()} · ${sc.arp.ivs.map(iv => iv === sc.color ? `<u>${deg(iv)}</u>` : deg(iv)).join(' ')}</p>
+    ${sc.steps.length === 7 ? `<p><b>Triads with the color</b> ${[0, 1, 2, 3, 4, 5, 6].filter(triadHasColor).map(d => `${ROMAN[d]} ${chordName(d)}`).join(' · ')}</p>` : ''}
+    <p><b>Sound</b> ${sc.mood}</p>
+    <p><b>Use it</b> ${sc.use}</p>
+    <p><b>Background</b> ${vamp}</p>
+    <p class="tip">${sc.tip}</p>`;
+  const n = Math.min(sc.steps.length, 7);
+  $('degree').innerHTML = `<option value="-2">Modal arpeggio · ${modalName()} (has ${deg(sc.color)})</option><option value="-1">All degree triads</option>` +
+    Array.from({ length: n }, (_, d) => `<option value="${d}">${triadHasColor(d) ? '★ ' : ''}${ROMAN[d]} · ${chordName(d)}${triadHasColor(d) ? ` (has ${deg(sc.color)})` : ' (no color note)'}</option>`).join('');
+  if (S.degree >= n) S.degree = -2;
+  $('degree').value = String(S.degree);
+  document.querySelectorAll('.modemap button').forEach(b => b.onclick = () => { // troca para o modo irmão (mesmas notas)
+    const k = +b.dataset.k, parent = mod12(S.key - MAJOR[S.scale.mode]);
+    S.key = mod12(parent + MAJOR[k]); $('key').value = S.key;
+    const idx = SCALES.findIndex(x => x.mode === k); S.scale = SCALES[idx]; $('scale').value = idx; S.degree = -2; refreshMusic();
+    audio(); tone(48 + S.key, ctx.currentTime + 0.01, 0.4, 2.5);
+  });
+  updateBgNow();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Controles
+// ---------------------------------------------------------------------------------------------
+// faixa de 0 a 100 BPM (pedido do usuário)
+function setBpm(v) { S.bpm = Math.max(0, Math.min(100, Math.round(v))); $('bpm').value = S.bpm; $('bpmShow').textContent = S.bpm; }
+function refreshMusic() { drawTheory(); buildSeq(); if (S.padOn) startPad(); }
+NOTES.forEach((n, i) => $('key').insertAdjacentHTML('beforeend', `<option value="${i}">${n}</option>`));
+SCALES.forEach((s, i) => $('scale').insertAdjacentHTML('beforeend', `<option value="${i}">${s.name}</option>`));
+$('key').value = S.key;
+$('play').onclick = () => S.running ? stop() : start();
+$('playEx').onclick = toggleExercise;
+$('bpm').oninput = e => setBpm(+e.target.value);
+$('sig').onchange = e => { S.beats = +e.target.value; buildBeats(); };
+$('subdiv').onchange = e => { S.subdiv = +e.target.value; };
+$('key').onchange = e => { S.key = +e.target.value; refreshMusic(); };
+$('scale').onchange = e => { S.scale = SCALES[+e.target.value]; S.degree = -2; refreshMusic(); };
+$('labels').onchange = e => { S.labels = e.target.value; drawFret(); };
+$('view').onchange = e => { S.view = e.target.value; drawFret(); };
+$('sound').onchange = e => { S.sound = e.target.value; };
+$('pattern').onchange = e => { S.pattern = +e.target.value; buildSeq(); };
+$('degree').onchange = e => { S.degree = +e.target.value; buildSeq(); };
+$('exType').onchange = e => {
+  S.exType = e.target.value; const sw = S.exType !== 'scale';
+  $('pattern').hidden = sw; $('degree').hidden = !sw;
+  if (sw && S.subdiv === 2) { S.subdiv = 3; $('subdiv').value = '3'; }
+  buildSeq();
+};
+$('pos').oninput = e => { S.pos = +e.target.value; $('posShow').textContent = 'fret ' + S.pos; buildSeq(); };
+$('padVol').oninput = () => { if (padBus) padBus.gain.setTargetAtTime(padLevel(), ctx.currentTime, 0.1); };
+function toggle(id, keyName, after) { $(id).onclick = () => { S[keyName] = !S[keyName]; $(id).classList.toggle('on', S[keyName]); if (after) after(); }; }
+toggle('clickOn', 'click');
+// trilha de fundo independente: Play/Stop próprio e relógio próprio, sem depender do metrônomo nem dos exercícios
+let padTimer = null, padStep = 0;
+function startPad() {
+  audio(); clearInterval(padTimer); padStep = 0; S.padOn = true; padChord(0);
+  padTimer = setInterval(() => { const v = S.scale.vamp; if (v) padChord(v[++padStep % v.length]); }, 8000); // troca de acorde a cada 8 s
+  $('padOn').textContent = '■ Stop';
+}
+function bgChords() { const v = S.scale.vamp || [0]; return v; }
+function updateBgNow() {
+  const v = bgChords(), name = d => `<b>${chordName(d)}</b> (${ROMAN[d] || ''})`;
+  if (S.padOn) {
+    const cur = padDeg === null ? v[0] : padDeg, nxt = v.length > 1 ? v[(v.indexOf(cur) + 1) % v.length] : null;
+    $('bgNow').innerHTML = `Now ${name(cur)}${nxt !== null ? ` · next ${chordName(nxt)} (${ROMAN[nxt]})` : ''}`;
+  } else $('bgNow').innerHTML = `Chords: ${v.map(name).join(' → ')}`;
+  if (S.view === 'chord') drawFret();
+}
+function stopPad() { clearInterval(padTimer); padTimer = null; S.padOn = false; padChord(0); $('padOn').textContent = '▶ Play'; }
+$('padOn').onclick = () => S.padOn ? stopPad() : startPad();
+toggle('builder', 'builder', () => { $('builder').textContent = S.builder ? 'On' : 'Off'; builderBars = 0; });
+$('theoryBtn').onclick = () => $('theory').classList.toggle('open');
+document.querySelector('#metro .bpm').onclick = () => $('metro').classList.toggle('open');
+let taps = [];
+function tap() { const t = performance.now(); taps = taps.filter(x => t - x < 2500); taps.push(t); if (taps.length >= 2) setBpm(60000 / ((taps[taps.length - 1] - taps[0]) / (taps.length - 1))); }
+$('tap').onclick = tap;
+addEventListener('keydown', e => {
+  if (document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName) && !['Space', 'Enter'].includes(e.code)) return;
+  if (e.code === 'Space') { e.preventDefault(); S.running ? stop() : start(); }
+  else if (e.code === 'Enter') { e.preventDefault(); toggleExercise(); }
+  else if (e.code === 'ArrowUp') { e.preventDefault(); setBpm(S.bpm + (e.shiftKey ? 5 : 1)); }
+  else if (e.code === 'ArrowDown') { e.preventDefault(); setBpm(S.bpm - (e.shiftKey ? 5 : 1)); }
+  else if (e.code === 'KeyT') tap();
+});
+
+buildBeats(); drawTheory(); buildSeq(); resize(); requestAnimationFrame(draw);
+</script>
+</body>
+</html>

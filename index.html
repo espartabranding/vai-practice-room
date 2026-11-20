@@ -82,6 +82,11 @@ details[open] summary { margin-bottom: 8px; }
   padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   background: var(--panel); border-top: 1px solid var(--line); }
 #fretbar .row.ctl { margin-bottom: 8px; }
+.fhead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+.fhead h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: .3px; }
+.fhead h1 b { color: var(--accent); }
+#scaleSub { font-size: 14px; color: var(--muted); }
+#scaleSub b { color: var(--text); font-weight: 600; }
 #fretbar .now { margin-left: auto; font-size: 14px; font-weight: 600; min-width: 110px; text-align: right; }
 .fretscroll { overflow-x: auto; }
 #fret { display: block; width: 100%; min-width: 720px; height: auto; cursor: pointer; touch-action: manipulation; }
@@ -174,6 +179,7 @@ details[open] summary { margin-bottom: 8px; }
 </div>
 
 <div id="fretbar">
+  <div class="fhead"><h1 id="scaleTitle"></h1><span id="scaleSub"></span></div>
   <div class="row ctl">
     <button class="primary" id="playEx">▶ Play exercise</button>
     <select id="exType" aria-label="Exercise">
@@ -700,6 +706,9 @@ function drawFret() {
     }
   });
   $('fret').innerHTML = o;
+  // nome da escala em destaque acima do braço; no arpejo, o acorde que está soando
+  $('scaleTitle').innerHTML = `<b>${keyName(S.key)}</b> ${S.scale.name}`;
+  $('scaleSub').innerHTML = curArp ? `Arpeggio: <b>${curArp.name}</b> (${curArp.roles.join(' ')})` : `${S.scale.steps.map(iv => deg(iv)).join(' ')}`;
   const hints = { full: '', tonics: 'Only the home notes: find the tonic and the relative tonic anywhere on the neck.',
     box: 'One hand position: everything you can reach without shifting.',
     chord: `Chord tones of ${ref.name}: ${ref.roles.join(' ')}. Dashed notes are chord tones outside the scale.`,

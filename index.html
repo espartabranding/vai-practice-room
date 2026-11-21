@@ -241,7 +241,7 @@ details[open] summary { margin-bottom: 8px; }
     <select id="fsys" aria-label="Fingering system"><option value="pos7">Fingering: one position per degree</option><option value="nps3">Fingering: 3 notes per string</option><option value="caged">Fingering: CAGED (5 shapes, hand still)</option></select>
     <select id="degree" aria-label="Arpeggio degree" hidden></select>
     <select id="bgdeg" aria-label="Backing chord" hidden></select>
-    <select id="arpKind" aria-label="Arpeggio type" hidden><option value="triad">Triads (1 3 5)</option><option value="seventh">7th chords (1 3 5 7)</option></select>
+    <select id="arpKind" aria-label="Arpeggio type" hidden><option value="modal">Modal chords (7th + color note)</option><option value="triad">Triads (1 3 5)</option><option value="seventh">7th chords (1 3 5 7)</option></select>
     <select id="sstr" aria-label="Start string" hidden></select>
     <label class="k" for="pos">Position</label><input type="range" id="pos" min="0" max="12" value="5" step="1"><span id="posShow" class="k"></span>
     <select id="view" aria-label="Fretboard view">
@@ -737,7 +737,24 @@ function family(sc = S.scale) {
   return at ? { names: FAMILY[at[0]], i: at[1] } : null;
 }
 const harmSteps = () => S.scale.steps.filter(iv => iv !== S.scale.passing); // a nota de passagem (bebop, blues) não é grau da harmonia
+// acorde do modo de cada grau: a tétrade mais a nota característica do modo, quando ela ainda não está no acorde.
+// Em C maior: Cmaj7, Dm7(6), Em7(b9), Fmaj7(#11), G7, Am7(b6), Bm7b5. A referência é maior, menor natural ou mixolídio;
+// se o próprio acorde já foge da referência (G7 no maior, m7b5), ele já mostra o modo e não ganha nota.
+function modalDeg(d) {
+  const base = degArp(d, 'seventh'), st = harmSteps();
+  if (st.length !== 7) return base;
+  const c = base.ivs.map(mod12), mode = st.map(x => mod12(x - st[d])), has = x => c.includes(x), dom = has(4) && has(10);
+  const ref = dom ? [0, 2, 4, 5, 7, 9, 10] : has(4) ? MAJOR : [0, 2, 3, 5, 7, 8, 10];
+  if (c.some(x => !ref.includes(x)) && !dom) return base;
+  if (dom && c.some(x => !ref.includes(x))) return base;
+  let col = mode.filter(x => !has(x) && !ref.includes(x)).sort((a, b) => a - b)[0];
+  if (col === undefined && !has(4) && mode.includes(8)) col = 8; // eólio: a b6 é a nota dele
+  if (col === undefined || (!dom && has(4) && ref === MAJOR && col === undefined)) return base;
+  const lab = { 1: 'b9', 2: '9', 3: '#9', 5: '11', 6: '#11', 8: dom ? 'b13' : 'b6', 9: '6' }[col];
+  return { ...base, ivs: [...base.ivs, col + 12], pcs: [...base.pcs, mod12(S.key + st[d] + col)], roles: [...base.roles, lab], name: `${base.name}(${lab})` };
+}
 function degArp(d, kind = S.arpKind) {
+  if (kind === 'modal') return modalDeg(d);
   const st = harmSteps(), n = st.length, size = kind === 'seventh' ? 4 : 3;
   const ivs = [];
   for (let k = 0; k < size; k++) { const i = d + 2 * k; ivs.push(st[i % n] + 12 * Math.floor(i / n) - st[d]); }
@@ -796,6 +813,11 @@ function sweepTones(pcs, tag, strings) {
 // quando uma nota por corda não fecha o acorde: até 2 notas nas cordas de baixo e 3 na de cima, sempre subindo,
 // numa mão só (até 5 casas) e perto da posição. Escolhe o desenho com menos notas, mais dentro da posição, da fundamental.
 function compactSweep(pcs, strings) {
+  // acorde inteiro; se não couber na mão, sai a 5ª; depois a fundamental. A 3ª, a 7ª e a nota de cor ficam
+  for (const out of [[], [2], [2, 0]]) { const r = compactWith(pcs, pcs.filter((_, i) => !out.includes(i)), strings); if (r) return r; }
+  return null;
+}
+function compactWith(pcs, must, strings) {
   const tones = new Set(pcs), lo = S.pos <= 2 ? 0 : S.pos - 2, hi = Math.min(FRETS, S.pos + 7), top = strings[strings.length - 1]; // no começo do braço vale corda solta
   const out = f => f < S.pos ? S.pos - f : f > S.pos + 5 ? f - S.pos - 5 : 0;
   const score = l => [l.length, l.reduce((t, x) => t + out(x.f), 0), mod12(l[0].m) === pcs[0] ? 0 : 1, l[0].f];
@@ -803,7 +825,8 @@ function compactSweep(pcs, strings) {
   let best = null, bestS = null;
   const walk = (si, onStr, list) => {
     const s = strings[si], last = list[list.length - 1];
-    if (si === strings.length - 1 && onStr > 0 && new Set(list.map(x => mod12(x.m))).size === tones.size) {
+    if (best && list.length > best.length) return;
+    if (si === strings.length - 1 && onStr > 0 && must.every(p => list.some(x => mod12(x.m) === p))) {
       const sc = score(list); if (!best || better(sc, bestS)) { best = list; bestS = sc; }
     }
     if (list.length >= pcs.length + strings.length) return;
@@ -1196,7 +1219,7 @@ function drawTheory() {
     <p class="tip">${sc.tip}</p>`;
   const n = harmSteps().length, seven = n === 7, colorPc = mod12(S.key + sc.color);
   const bgNames = [...new Set(bgChords().map(chordLabel))].join(' · ');
-  const kind = S.arpKind === 'seventh' ? '7th chords' : 'triads';
+  const kind = S.arpKind === 'modal' ? 'modal chords' : S.arpKind === 'seventh' ? '7th chords' : 'triads';
   const degName = d => seven ? ROMAN[d] : deg(harmSteps()[d]);
   const baseNames = [...new Set(baseBgChords().map(chordLabel))].join(' → ');
   $('bgdeg').innerHTML = `<option value="-3">Backing: ${S.lesson && S.lesson.prog ? 'lesson' : 'scale'} chords · ${baseNames}</option>` +
@@ -1296,7 +1319,7 @@ S.fsys = store0('fsys', 'pos7'); $('fsys').value = S.fsys; // a digitação esco
 $('fsys').onchange = e => { S.fsys = e.target.value; store0set('fsys', S.fsys); syncPos(); buildSeq(); };
 $('exType').onchange = e => {
   S.exType = e.target.value; syncExUi();
-  if (S.exType === 'sweepAll') { S.degree = -1; $('degree').value = '-1'; drawTheory(); if (S.padOn) startPad(); }
+  if (S.exType === 'sweepAll') { S.degree = -1; S.arpKind = 'modal'; $('arpKind').value = 'modal'; drawTheory(); $('degree').value = '-1'; if (S.padOn) startPad(); }
   if ((S.exType.startsWith('sweep') || S.exType.startsWith('tap')) && S.subdiv === 2) { S.subdiv = 3; $('subdiv').value = '3'; }
   buildSeq();
 };

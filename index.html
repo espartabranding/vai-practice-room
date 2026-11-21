@@ -647,7 +647,7 @@ function buildSeq() {
     const strings = S.exType === 'sweep6' ? [0, 1, 2, 3, 4, 5] : S.exType === 'sweep5' ? [1, 2, 3, 4, 5] : [3, 4, 5];
     seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : S.exType === 'tap' ? tapTones(ch.pcs, ch.key) : S.exType === 'tapx' ? tapSkip(ch.pcs, ch.key) : sweepTones(ch.pcs, ch.key, strings));
   }
-  seqIdx = 0;
+  seqIdx = 0; activeIdx = -1;
   drawFret();
 }
 
@@ -661,10 +661,10 @@ function schedule() {
     const per = S.subdiv, sub = tick % per, beatAbs = Math.floor(tick / per), beat = beatAbs % S.beats, bar = Math.floor(beatAbs / S.beats);
     const level = sub === 0 ? (beat === 0 ? 2 : 1) : 0;
     if (S.click) bell(nextTime, level);
-    let note = null;
-    if (S.exOn && seq.length) { note = seq[seqIdx % seq.length]; seqIdx++; tone(note.m, nextTime, 0.4, 2.6); }
+    let note = null, idx = -1;
+    if (S.exOn && seq.length) { idx = seqIdx % seq.length; note = seq[idx]; seqIdx++; tone(note.m, nextTime, 0.4, 2.6); }
     if (sub === 0 && beat === 0 && tick > 0 && S.builder && ++builderBars >= +$('bBars').value) { builderBars = 0; setBpm(Math.min(+$('bMax').value, S.bpm + +$('bStep').value)); }
-    visualQueue.push({ time: nextTime, beat, sub, level, note });
+    visualQueue.push({ time: nextTime, beat, sub, level, note, idx });
     nextTime += 60 / S.bpm / per; tick++;
   }
 }
@@ -675,7 +675,7 @@ function start() {
   $('play').textContent = '■ Stop';
 }
 function stop() {
-  S.running = false; clearInterval(timer); timer = null; visualQueue.length = 0; active = null; drawFret();
+  S.running = false; clearInterval(timer); timer = null; visualQueue.length = 0; active = null; activeIdx = -1; drawFret();
   S.exOn = false; $('playEx').textContent = '▶ Play exercise'; $('play').textContent = '▶ Start'; $('now').textContent = '';
   syncLessonBtn();
 }
@@ -689,13 +689,13 @@ function toggleExercise() {
 // ---------------------------------------------------------------------------------------------
 // Sincronia visual: acende a batida e a nota no momento em que soam
 // ---------------------------------------------------------------------------------------------
-let active = null;
+let active = null, activeIdx = -1; // a nota tocando e a posição dela na sequência (a mesma nota se repete nos grupos)
 function draw() {
   const now = ctx ? ctx.currentTime : 0;
   while (visualQueue.length && visualQueue[0].time <= now) {
     const ev = visualQueue.shift();
     if (ev.sub === 0) markBeat(ev.beat, ev.level === 2);
-    if (ev.note) { active = ev.note; drawFret(); showNow(ev.note.m); }
+    if (ev.note) { active = ev.note; activeIdx = ev.idx; drawFret(); showNow(ev.note.m); }
   }
   requestAnimationFrame(draw);
 }
@@ -750,7 +750,7 @@ function drawTab(arpOn) {
     if (head && i > 0) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
     prevD = n.d;
     const f = arpOn && fing[n.d] ? fing[n.d](n.s, n.f) : undefined;
-    cols.push({ html: `<div class="tcol${S.exOn && active === n ? ' playing' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
+    cols.push({ html: `<div class="tcol${S.exOn && i === activeIdx ? ' playing' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
   });
   const lab = `<div class="tcol lab"><b></b>${['e', 'B', 'G', 'D', 'A', 'E'].map(x => `<span>${x}</span>`).join('')}<i>${arpOn ? 'fing.' : ''}</i></div>`;
   const per = Math.max(8, Math.floor(((el.clientWidth || 1100) - 44) / 22));

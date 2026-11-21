@@ -591,14 +591,14 @@ function sweepTones(pcs, tag, strings) {
   for (const s of strings.slice(1)) {
     // primeiro dentro da posição escolhida (o desenho não escapa da caixa); se não houver, até 4 casas de distância
     const pick = (a, b) => { let best = null; for (let f = Math.max(0, a); f <= Math.min(FRETS, b); f++) { const m = TUNING[s] + f; if (m > prev.m && isTone(m) && (!best || m < best.m)) best = { s, f, m }; } return best; };
-    const best = pick(Math.max(lo, prev.f - 4), Math.min(hi, prev.f + 4)) || pick(prev.f - 4, prev.f + 4);
+    const best = pick(Math.max(S.pos, prev.f - 4), Math.min(S.pos + 5, prev.f + 4)) || pick(Math.max(lo, prev.f - 4), Math.min(hi, prev.f + 4)) || pick(prev.f - 4, prev.f + 4);
     if (!best) break;
     up.push(best); prev = best;
   }
   const top = strings[strings.length - 1], minF = Math.min(...up.map(x => x.f));
   for (let k = 0; k < 2; k++) {
     let nx = null;
-    for (let f = prev.f + 1; f <= Math.min(FRETS, minF + 5) && !nx; f++) { const m = TUNING[top] + f; if (isTone(m)) nx = { s: top, f, m }; }
+    for (let f = prev.f + 1; f <= Math.min(FRETS, minF + 5, Math.max(S.pos + 5, prev.f)) && !nx; f++) { const m = TUNING[top] + f; if (isTone(m)) nx = { s: top, f, m }; }
     if (!nx) break; up.push(nx); prev = nx;
   }
   return up.concat(up.slice(0, -1).reverse().slice(0, -1)).map(x => ({ ...x, d: tag }));
@@ -723,14 +723,17 @@ function fingering(notes) {
     const fr = group.filter(n => n.f > 0).map(n => n.f);
     if (fr.length) {
       const lo = Math.min(...fr), span = Math.max(...fr) - lo;
-      group.forEach(n => { if (n.f > 0) { const d = n.f - lo; map.set(n.s + ':' + n.f, span <= 3 ? d + 1 : [1, 2, 3, 3, 4][d]); } });
+      // até 4 casas: um dedo por casa; 5 casas (com no máximo 4 casas usadas): indicador na mais grave, mínimo na mais aguda
+      const used = [...new Set(fr)].sort((x, y) => x - y);
+      const by = f => span <= 3 ? f - lo + 1 : used.length === 4 ? used.indexOf(f) + 1 : f === lo ? 1 : f === lo + 4 ? 4 : f - lo <= 2 ? 2 : 3;
+      group.forEach(n => { if (n.f > 0) map.set(n.s + ':' + n.f, by(n.f)); });
     }
     group.forEach(n => { if (n.f === 0) map.set(n.s + ':0', 0); });
     group = [];
   };
   path.forEach(n => {
     const fr = group.filter(x => x.f > 0).map(x => x.f).concat(n.f > 0 ? [n.f] : []);
-    if (fr.length && Math.max(...fr) - Math.min(...fr) > 4) flush();
+    if (fr.length && (Math.max(...fr) - Math.min(...fr) > 4 || (Math.max(...fr) - Math.min(...fr) === 4 && new Set(fr).size > 4))) flush(); // a mão muda de posição
     group.push(n);
   });
   flush();
@@ -813,8 +816,8 @@ function drawFret() {
       const pc = mod12(m), owner = outside ? [curArp, ref].find(c => c && c.pcs.includes(pc)) : null;
       let label = S.labels === 'deg' ? (outside ? DEG[iv] : deg(iv)) : owner ? spell(pc, owner.roles[owner.pcs.indexOf(pc)]) : noteAt(pc);
       let hide = false, altered = false;
-      if (view === 'tonics') hide = !isRoot && !isRel && !act;
-      else if (view === 'box') hide = !inBox(f) && !act; // a caixa mostra só a posição
+      if (view === 'tonics') hide = !isRoot && !isRel && !act && !arp; // as notas do arpejo nunca somem
+      else if (view === 'box') hide = !inBox(f) && !act && !arp; // a caixa mostra só a posição
       else if (view === 'chord') { const ci = ref.pcs.indexOf(mod12(m)); if (ci < 0) dim = !act; else label = ref.roles[ci]; }
       else if (view === 'parallel') { altered = !outside && !MAJOR.includes(iv); dim = dim || (!altered && !isRoot); }
       else if (view === 'modes' && parentPc !== null) { const k = MAJOR.indexOf(mod12(m - parentPc)); if (k >= 0) label = MODE_SHORT[k]; }

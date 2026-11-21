@@ -124,6 +124,17 @@ details[open] summary { margin-bottom: 8px; }
 .ldetail li { margin-bottom: 4px; }
 .ldetail .goal { border-left: 2px solid var(--accent); padding-left: 10px; }
 .ldetail .muted { color: var(--muted); }
+.pickrow { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.pickrow select { min-width: 240px; max-width: 100%; }
+.who { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; margin: 0 0 12px; }
+.who button { font-size: 12px; padding: 3px 9px; border-radius: 999px; }
+.items { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.item { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.item.cur { border-color: var(--accent); background: var(--panel2); }
+.item h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+.item h4 small { color: var(--muted); font-weight: 400; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; flex: none; }
+.item p { margin: 0 0 8px; }
+.item .chips { margin-bottom: 8px; }
 
 #theoryBtn { display: none; }
 @media (max-width: 900px) {
@@ -326,6 +337,7 @@ const QUAL = {
   '': { ivs: [0, 4, 7], lab: ['R', '3', '5'] },
   m: { ivs: [0, 3, 7], lab: ['R', 'b3', '5'] },
   dim: { ivs: [0, 3, 6], lab: ['R', 'b3', 'b5'] },
+  dim7: { ivs: [0, 3, 6, 9], lab: ['R', 'b3', 'b5', 'bb7'] },
   aug: { ivs: [0, 4, 8], lab: ['R', '3', '#5'] },
   '5': { ivs: [0, 7], lab: ['R', '5'] },
   '6': { ivs: [0, 4, 7, 9], lab: ['R', '3', '5', '6'] },
@@ -1030,6 +1042,255 @@ const COURSE = [
         goal: "A descending fill from A to A in one bar at 90 BPM." },
     ] },
 ];
+// ---------------------------------------------------------------------------------------------
+// Guitarristas: por estilo, as escalas principais e as escalas e arpejos marcantes de cada um.
+// Cada item carrega no braço como uma mini-lição (mesmos campos de uma lição). Tons e progressões são
+// "no estilo de": mostram o material, não a transcrição de um solo.
+// ---------------------------------------------------------------------------------------------
+const PLAYERS = {
+  blues: {
+    main: [
+      { t: 'Minor pentatonic', key: 'A', scale: 'Minor pentatonic', pos: 5, ex: 'scale', view: 'box', bpm: 60, prog: B12, note: "The core of blues soloing: 1 b3 4 5 b7, all five notes work over the three chords." },
+      { t: 'Blues scale', key: 'A', scale: 'Blues scale', pos: 5, ex: 'scale', view: 'box', bpm: 60, subdiv: 3, prog: B12, note: "Minor pentatonic plus the b5 blue note, used as a passing tone." },
+      { t: 'Major pentatonic', key: 'A', scale: 'Major pentatonic', pos: 2, ex: 'scale', view: 'box', bpm: 60, prog: B12, note: "The sweet side of a major blues: 1 2 3 5 6." },
+      { t: 'Major blues (major + minor mix)', key: 'A', scale: 'Major blues', pos: 2, ex: 'scale', view: 'box', bpm: 60, prog: B12, note: "The b3 that rubs into the 3: the most bluesy move there is." },
+      { t: 'Mixolydian', key: 'A', scale: 'Mixolydian', pos: 4, ex: 'scale', bpm: 60, prog: [[0, '9', 4], [5, '9', 4]], note: "The scale of the dominant chord, with the 9th and 13th of uptown blues." },
+      { t: 'Dominant 7 arpeggios', key: 'A', scale: 'Minor pentatonic', pos: 4, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: B12, note: "A7, D7 and E7 in one position, to land on the chord tones as the changes go by." },
+    ],
+    players: [
+      { id: 'bbking', name: 'B.B. King', from: 'The Thrill Is Gone · Lucille', style: "Few notes, huge vibrato. Most B.B. King solos sit in small boxes on the top three strings, rarely more than an octave and a half wide, blending major and minor.",
+        items: [
+          { t: 'The B.B. King box', key: 'A', scale: 'Dorian', pos: 9, ex: 'scale', view: 'box', bpm: 60, prog: B12, note: "Around the root on the B string (fret 10 in A): 1 2 b3 4 5 6. Shown here as A Dorian, which holds all six notes. Bend the b3 toward the 3 and the 4 up to the 5." },
+          { t: 'The sweet major 6 side', key: 'A', scale: 'Major pentatonic', pos: 9, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, '6', 2], [5, '9', 2]], note: "Over the I chord, lean on the 6th and 3rd: the A6 arpeggio sits right inside the box." },
+          { t: 'Minor blues: "The Thrill Is Gone" style', key: 'B', scale: 'Minor pentatonic', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 55, prog: [[0, 'm7', 4], [5, 'm7', 2], [0, 'm7', 2], [8, '7', 2], [7, '7', 2], [0, 'm7', 2]], note: "Bm7, Em7, G7, F#7: the pentatonic covers the minor chords, and the F#7 arpeggio brings in A#, the leading tone back to B." },
+        ] },
+      { id: 'albertking', name: 'Albert King', from: 'Born Under a Bad Sign · Crosscut Saw', style: "Left-handed, upside-down, with enormous bends. Most of the iconic Albert King solos use five notes in one position: the second box of the minor pentatonic.",
+        items: [
+          { t: 'The Albert King box', key: 'A', scale: 'Minor pentatonic', pos: 7, ex: 'scale', view: 'box', bpm: 60, prog: B12, note: "Box 2 of the minor pentatonic (frets 7 to 10 in A). The 4 and the b7 get bent up, often by more than a whole step." },
+          { t: 'Blue note bends', key: 'A', scale: 'Blues scale', pos: 7, ex: 'scale', view: 'box', bpm: 55, subdiv: 3, prog: B12, note: "Same box with the b5: bend the 4 a half step to reach it, never land there." },
+        ] },
+      { id: 'freddieking', name: 'Freddie King', from: 'Hide Away · The Stumble', style: "Texas shuffle instrumentals that jump between the major and minor pentatonic in open E, with a thumb and finger pick.",
+        items: [
+          { t: '"Hide Away" style: major blues in E', key: 'E', scale: 'Major blues', pos: 0, ex: 'scale', view: 'box', bpm: 70, subdiv: 3, prog: B12, note: "Open-position E with the G to G# hammer-on (b3 to 3) that gives the tune its bounce." },
+          { t: 'Minor pentatonic at the 12th fret', key: 'E', scale: 'Minor pentatonic', pos: 12, ex: 'scale', view: 'box', bpm: 70, subdiv: 3, prog: B12, note: "The same notes as the open box, an octave up, for the stinging part of the solo." },
+        ] },
+      { id: 'clapton', name: 'Eric Clapton', from: 'Crossroads · Have You Ever Loved a Woman', style: "Fluid minor pentatonic phrasing with Mixolydian touches, plus the major 6th and 9th over dominant chords.",
+        items: [
+          { t: '"Crossroads" style: box 1 in A', key: 'A', scale: 'Minor pentatonic', pos: 5, ex: 'scale', pattern: 3, view: 'box', bpm: 60, prog: [[0, '', 4], [5, '', 2], [0, '', 2], [7, '', 2], [0, '', 2]], note: "The fifth-fret box over A, D and E, played in fast groups of three." },
+          { t: 'Mixolydian colors', key: 'A', scale: 'Mixolydian', pos: 4, ex: 'scale', bpm: 60, prog: B12, note: "Adds the 2 and the 6 to the pentatonic: lines that outline A7 instead of fighting it." },
+        ] },
+      { id: 'srv', name: 'Stevie Ray Vaughan', from: 'Pride and Joy · Texas Flood', style: "Aggressive Texas blues in E (tuned down a half step), mixing open-string riffs, the Albert King box and the major pentatonic.",
+        items: [
+          { t: 'Blues scale in open E', key: 'E', scale: 'Blues scale', pos: 0, ex: 'scale', view: 'box', bpm: 70, subdiv: 3, prog: B12, note: "Open strings plus the Bb blue note: the sound of the SRV shuffles." },
+          { t: '"Pride and Joy" style: major and minor', key: 'E', scale: 'Major blues', pos: 0, ex: 'scale', view: 'box', bpm: 70, subdiv: 3, prog: B12, note: "The b3 to 3 move (G to G#) between the open strings." },
+          { t: 'Albert King box in E', key: 'E', scale: 'Minor pentatonic', pos: 12, ex: 'scale', view: 'box', bpm: 60, prog: B12, note: "SRV took Albert King's box (box 2) and its bends; here frets 14 to 17." },
+          { t: 'Dominant 7 arpeggios in E', key: 'E', scale: 'Minor pentatonic', pos: 0, ex: 'arp', src: -3, view: 'chord', bpm: 60, subdiv: 3, prog: B12, note: "E7, A7 and B7 in open position: target G#, C# and D# as each chord arrives." },
+        ] },
+      { id: 'bonamassa', name: 'Joe Bonamassa', from: 'Sloe Gin · The Ballad of John Henry', style: "Modern blues rock: fast pentatonic sequences, Dorian over minor grooves, natural minor in the slow tunes.",
+        items: [
+          { t: 'Pentatonic sequences in 16ths', key: 'A', scale: 'Minor pentatonic', pos: 5, ex: 'scale', pattern: 4, view: 'box', bpm: 50, subdiv: 4, prog: [[0, 'm7', 4]], note: "Groups of four through box 1: the engine of the fast runs." },
+          { t: 'Dorian minor blues', key: 'A', scale: 'Dorian', pos: 5, ex: 'scale', bpm: 60, prog: [[0, 'm7', 2], [5, '7', 2]], note: "The natural 6 (F#) makes Am7 to D7 sound soulful instead of dark." },
+        ] },
+    ] },
+  rock: {
+    main: [
+      { t: 'Minor pentatonic (open E)', key: 'E', scale: 'Minor pentatonic', pos: 0, ex: 'scale', view: 'box', bpm: 70, prog: [[0, '5', 2], [10, '5', 1], [5, '5', 1]], note: "Riffs and solos: the first scale of rock." },
+      { t: 'Blues scale', key: 'A', scale: 'Blues scale', pos: 5, ex: 'scale', view: 'box', bpm: 70, prog: [[0, '5', 2], [10, '5', 1], [5, '5', 1]], note: "The pentatonic with the b5 for grit." },
+      { t: 'Natural minor (Aeolian)', key: 'E', scale: 'Aeolian (Natural minor)', pos: 7, ex: 'scale', bpm: 60, prog: [[0, 'm', 2], [8, '', 1], [10, '', 1]], note: "Melodic, epic solos over i–bVI–bVII." },
+      { t: 'Mixolydian', key: 'A', scale: 'Mixolydian', pos: 4, ex: 'scale', bpm: 70, prog: [[0, '', 2], [10, '', 1], [5, '', 1]], note: "Classic rock's I–bVII–IV sound." },
+      { t: 'Dorian', key: 'E', scale: 'Dorian', pos: 7, ex: 'scale', bpm: 60, prog: [[0, 'm7', 2], [5, '', 2]], note: "Minor rock with a lift (Santana, Pink Floyd)." },
+      { t: 'Harmonic minor', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, 'm', 2], [7, '7', 2]], note: "Neoclassical rock and metal." },
+      { t: 'Phrygian dominant', key: 'E', scale: 'Phrygian dominant', pos: 0, ex: 'scale', bpm: 60, prog: [[0, '', 2], [1, '', 2]], note: "Metal's exotic sound on the low E." },
+    ],
+    players: [
+      { id: 'page', name: 'Jimmy Page', from: 'Led Zeppelin · Stairway to Heaven', style: "Loose, bluesy pentatonic phrasing with repeated licks, over minor chord progressions and slow minor blues.",
+        items: [
+          { t: '"Stairway" style: A minor pentatonic', key: 'A', scale: 'Minor pentatonic', pos: 5, ex: 'scale', view: 'box', bpm: 70, prog: [[0, 'm', 1], [10, '', 1], [8, '', 2]], note: "Box 1 at the 5th fret over Am–G–F. Land on the chord tone that changes: G over G, A or C over F." },
+          { t: 'Am–G–F arpeggios', key: 'A', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, 'm', 1], [10, '', 1], [8, '', 2]], note: "The three triads in the same box, so the pentatonic lines can aim at them." },
+          { t: 'Slow minor blues in C', key: 'C', scale: 'Blues scale', pos: 8, ex: 'scale', view: 'box', bpm: 50, subdiv: 3, prog: MB12, note: "\"Since I've Been Loving You\" territory: C minor blues with the Gb blue note." },
+        ] },
+      { id: 'angus', name: 'Angus Young', from: 'AC/DC · Highway to Hell', style: "Pure blues scale in A and E, fast repeated pull-offs, and the major 3rd snuck in over major chords.",
+        items: [
+          { t: 'Blues scale box at the 5th fret', key: 'A', scale: 'Blues scale', pos: 5, ex: 'scale', view: 'box', bpm: 70, prog: [[0, '5', 1], [5, '5', 1], [10, '5', 2]], note: "Over A–D–G power chords: almost every AC/DC solo lives in this box." },
+          { t: 'Major and minor in the same box', key: 'A', scale: 'Major blues', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: [[0, '', 2], [5, '', 1], [7, '', 1]], note: "The b3 (C) bent or hammered to the 3 (C#) over the A chord." },
+        ] },
+      { id: 'evh', name: 'Eddie Van Halen', from: 'Van Halen · Eruption', style: "Blues-scale fury plus tapped triad arpeggios across one string and wide pentatonic stretches.",
+        items: [
+          { t: 'Blues scale in A', key: 'A', scale: 'Blues scale', pos: 5, ex: 'scale', pattern: 3, view: 'box', bpm: 60, subdiv: 4, prog: [[0, '5', 4]], note: "Fast groups of three with the b5 thrown in: the core of the Van Halen runs." },
+          { t: 'Triads for tapping', key: 'E', scale: 'Aeolian (Natural minor)', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 50, prog: [[0, 'm', 1], [8, '', 1], [10, '', 1], [0, 'm', 1]], note: "Em, C and D chord tones in one position. Tapping style: fret the low two notes, tap the top one on the same string." },
+        ] },
+      { id: 'slash', name: 'Slash', from: "Guns N' Roses · Sweet Child o' Mine", style: "Melodic minor pentatonic and natural minor lines, tuned down a half step, with long vibrato and wah.",
+        items: [
+          { t: 'Natural minor over Em–C–D', key: 'E', scale: 'Aeolian (Natural minor)', pos: 12, ex: 'scale', bpm: 60, prog: [[0, 'm', 1], [8, '', 1], [10, '', 2]], note: "The 12th-fret E minor area of the big outro solos: the b6 (C) and 2 (F#) make it sing." },
+          { t: 'Pentatonic at the 12th fret', key: 'E', scale: 'Minor pentatonic', pos: 12, ex: 'scale', pattern: 3, view: 'box', bpm: 60, subdiv: 4, prog: [[0, 'm', 4]], note: "The fast runs: groups of three in the high box." },
+        ] },
+      { id: 'zakk', name: 'Zakk Wylde', from: 'Ozzy · Black Label Society', style: "Pentatonic shred: alternate-picked sequences across the boxes, pinch harmonics and natural minor in E.",
+        items: [
+          { t: 'Pentatonic shred in groups of 4', key: 'E', scale: 'Minor pentatonic', pos: 12, ex: 'scale', pattern: 4, view: 'box', bpm: 50, subdiv: 4, prog: [[0, '5', 4]], note: "Sixteenth-note sequences through the 12th-fret box, fully alternate-picked." },
+          { t: 'Natural minor in E', key: 'E', scale: 'Aeolian (Natural minor)', pos: 7, ex: 'scale', pattern: 3, bpm: 50, subdiv: 4, prog: [[0, 'm', 2], [8, '', 1], [10, '', 1]], note: "For the melodic solos: groups of three across the 7th-fret position." },
+        ] },
+      { id: 'kotzen', name: 'Richie Kotzen', from: 'Poison · Mr. Big · solo albums', style: "Hard rock and blues attitude with very fast, smooth legato. Kotzen thinks in pentatonic boxes more than scales, joins two boxes into three-notes-per-string shapes, uses lots of slides, and plays fingerstyle today.",
+        items: [
+          { t: 'Pentatonic legato across two boxes', key: 'A', scale: 'Minor pentatonic', pos: 5, ex: 'scale', pattern: 4, view: 'box', bpm: 50, subdiv: 4, prog: [[0, 'm7', 4]], note: "Frets 5 to 10 join box 1 and box 2: three notes on some strings, so hammer-ons and pull-offs flow." },
+          { t: 'Arpeggios through A minor changes', key: 'A', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, 'm', 1], [8, '', 1], [3, '', 1], [10, '', 1]], note: "Am–F–C–G as arpeggios in one position: the changes are spelled with triads drawn from the scale shape." },
+          { t: 'Dorian funk rock', key: 'A', scale: 'Dorian', pos: 5, ex: 'scale', pattern: 3, bpm: 60, subdiv: 4, prog: [[0, 'm7', 2], [5, '7', 2]], note: "Am7 to D7: the F# turns the pentatonic licks soulful." },
+          { t: 'Sweep arpeggios', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [8, '', 1], [5, 'm', 1], [7, '', 1]], note: "Am–F–Dm–E sweeps, the shred side of the early Kotzen records." },
+        ] },
+      { id: 'malmsteen', name: 'Yngwie Malmsteen', from: 'Rising Force · Far Beyond the Sun', style: "Neoclassical shred: harmonic minor and its Phrygian dominant mode, three-notes-per-string runs, and diminished 7 arpeggios swept on the top three strings and moved in minor thirds.",
+        items: [
+          { t: 'Harmonic minor in 16ths', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, 'm', 2], [7, '7', 2]], note: "The b6 to 7 jump (F to G#) over Am and E7." },
+          { t: 'Phrygian dominant over the V', key: 'E', scale: 'Phrygian dominant', pos: 5, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, '7', 2], [5, 'm', 2]], note: "The same notes as A harmonic minor, centered on E: the Malmsteen sound over E7 before resolving to Am." },
+          { t: 'Diminished 7 sweeps', key: 'A', scale: 'Harmonic minor', pos: 7, ex: 'sweep3', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [11, 'dim7', 1], [2, 'dim7', 1], [0, 'm', 1]], note: "G#dim7 is the VII chord of A harmonic minor. Bdim7 has the same four notes: the shape repeats every three frets." },
+          { t: 'Minor triad sweeps: i–iv–V', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [5, 'm', 1], [7, '', 1], [0, 'm', 1]], note: "Am–Dm–E–Am: five-string sweeps, the backbone of the Malmsteen arpeggio passages." },
+        ] },
+      { id: 'vai', name: 'Steve Vai', from: 'Passion and Warfare · For the Love of God', style: "Lydian is the Vai signature mode: the raised 4th over a major chord, with whammy bar and legato.",
+        items: [
+          { t: 'Lydian in E', key: 'E', scale: 'Lydian', pos: 7, ex: 'scale', bpm: 60, prog: [[0, 'maj7', 2], [2, '', 2]], note: "Emaj7 to F#: the A# (#4) lives in the F# chord." },
+          { t: 'Lydian arpeggio: maj7#11', key: 'E', scale: 'Lydian', pos: 7, ex: 'sweep5', src: -2, bpm: 40, subdiv: 3, prog: [[0, 'maj7', 4]], note: "The modal arpeggio includes the #11, so it already sounds Lydian." },
+        ] },
+      { id: 'satriani', name: 'Joe Satriani', from: 'Surfing with the Alien · Flying in a Blue Dream', style: "Pitch axis: keep the same root and switch modes underneath it, so the color changes while the tonic stays.",
+        items: [
+          { t: 'Pitch axis 1: E Lydian', key: 'E', scale: 'Lydian', pos: 7, ex: 'scale', bpm: 60, prog: [[0, 'maj7', 2], [2, '', 2]], note: "Start bright: E with the #4." },
+          { t: 'Pitch axis 2: E Mixolydian', key: 'E', scale: 'Mixolydian', pos: 7, ex: 'scale', bpm: 60, prog: [[0, '', 2], [10, '', 2]], note: "Same root, now with the b7: E to D." },
+          { t: 'Pitch axis 3: E Aeolian', key: 'E', scale: 'Aeolian (Natural minor)', pos: 7, ex: 'scale', bpm: 60, prog: [[0, 'm', 2], [8, '', 1], [10, '', 1]], note: "Same root, minor: compare all three at the same position." },
+        ] },
+    ] },
+  jazz: {
+    main: [
+      { t: 'Major scale and ii–V–I', key: 'C', scale: 'Ionian (Major)', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: IIVI, note: "Dm7–G7–Cmaj7: the progression of jazz." },
+      { t: 'Dorian (over m7)', key: 'D', scale: 'Dorian', pos: 5, ex: 'scale', bpm: 60, prog: [[0, 'm7', 4]], note: "The default minor 7 sound." },
+      { t: 'Mixolydian (over 7)', key: 'G', scale: 'Mixolydian', pos: 2, ex: 'scale', bpm: 60, prog: [[0, '7', 4]], note: "The default dominant sound." },
+      { t: 'Bebop dominant', key: 'G', scale: 'Bebop dominant', pos: 2, ex: 'scale', bpm: 60, prog: [[7, 'm7', 1], [0, '7', 1]], note: "Mixolydian plus a passing 7: eighth-note lines that land on chord tones." },
+      { t: 'Harmonic minor (minor ii–V–i)', key: 'C', scale: 'Harmonic minor', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[2, 'm7b5', 1], [7, '7b9', 1], [0, 'm(maj7)', 2]], note: "Dm7b5–G7b9–Cm." },
+      { t: 'Melodic minor', key: 'C', scale: 'Melodic minor', pos: 7, ex: 'scale', bpm: 60, prog: [[0, 'm6', 2], [0, 'm(maj7)', 2]], note: "The parent of the altered and Lydian dominant sounds." },
+      { t: 'Altered', key: 'G', scale: 'Altered', pos: 2, ex: 'scale', bpm: 50, prog: [[0, '7#9', 2], [5, 'maj7', 2]], note: "All the tensions on a V7 going to I." },
+      { t: 'Half-whole diminished', key: 'G', scale: 'Diminished (half-whole)', pos: 2, ex: 'scale', pattern: 3, bpm: 50, prog: [[0, '7b9', 2], [5, 'maj7', 2]], note: "For 7b9 chords." },
+    ],
+    players: [
+      { id: 'christian', name: 'Charlie Christian', from: 'Benny Goodman Sextet · Swing to Bop', style: "The first great electric soloist: horn-like swing lines built on arpeggios, riffs with the 6th and 9th, and the diminished 7 over dominant chords.",
+        items: [
+          { t: 'Swing blues in F', key: 'F', scale: 'Mixolydian', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 70, subdiv: 3, prog: B12, note: "F7, Bb7 and C7 arpeggios, then riff on the 6 and 9 of F7 (D and G)." },
+          { t: 'Diminished 7 over the dominant', key: 'C', scale: 'Ionian (Major)', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[7, '7', 1], [11, 'dim7', 1], [0, '6', 2]], note: "Bdim7 is G7b9 without the root: the same idea Django and Christian used to set up the I chord." },
+        ] },
+      { id: 'django', name: 'Django Reinhardt', from: 'Minor Swing · Nuages', style: "Gypsy jazz: minor 6 arpeggios, diminished 7 runs, harmonic minor and fast chromatic passages, played mostly with two fingers.",
+        items: [
+          { t: 'Minor 6 arpeggios: "Minor Swing" style', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 70, prog: [[0, 'm6', 2], [5, 'm6', 2], [7, '7', 2], [0, 'm6', 2]], note: "Am6–Dm6–E7. The F# of Am6 is outside A harmonic minor (dashed): it is the gypsy color." },
+          { t: 'Diminished runs into the minor', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[7, '7', 1], [11, 'dim7', 1], [0, 'm6', 2]], note: "E7 then G#dim7 (E7b9 without the root) resolving to Am6." },
+          { t: 'Harmonic minor lines', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'scale', pattern: 3, bpm: 60, subdiv: 3, prog: [[0, 'm6', 2], [7, '7', 2]], note: "The b6–7 gap is everywhere in the Django minor tunes." },
+        ] },
+      { id: 'wes', name: 'Wes Montgomery', from: 'Four on Six · Full House', style: "Thumb-picked single lines, then octaves, then block chords. Dorian over minor vamps and minor 7 and 9 arpeggios.",
+        items: [
+          { t: 'Dorian over a minor vamp', key: 'D', scale: 'Dorian', pos: 5, ex: 'scale', bpm: 60, prog: [[0, 'm7', 4]], note: "Long Dm7 vamps (\"Impressions\" style): the B natural keeps it hip." },
+          { t: 'Minor 9 arpeggios', key: 'D', scale: 'Dorian', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, 'm9', 4]], note: "D F A C E: the 9 on top is the warm Wes minor sound." },
+          { t: 'Minor blues in G', key: 'G', scale: 'Dorian', pos: 2, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: MB12, note: "\"Four on Six\" territory: Gm7, Cm7, Eb7 and D7 arpeggios." },
+        ] },
+      { id: 'joepass', name: 'Joe Pass', from: 'Virtuoso · Ella & Joe', style: "Bebop lines over ii–V–I changes, chromatic approach notes and half steps, diminished sounds on dominants.",
+        items: [
+          { t: 'ii–V–I in Bb', key: 'A#', scale: 'Ionian (Major)', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: IIVI, note: "Cm7–F7–Bbmaj7 in one position: connect each arpeggio to the nearest note of the next." },
+          { t: 'Bebop dominant over Cm7–F7', key: 'F', scale: 'Bebop dominant', pos: 7, ex: 'scale', bpm: 60, prog: [[7, 'm7', 1], [0, '7', 1]], note: "Descend in eighths from a chord tone: the passing E keeps F, A, C and Eb on the beat." },
+          { t: 'Diminished on the V', key: 'F', scale: 'Diminished (half-whole)', pos: 7, ex: 'scale', pattern: 3, bpm: 50, prog: [[0, '7b9', 2], [5, 'maj7', 2]], note: "F7b9 to Bbmaj7: groups of three make the symmetry easy to hear." },
+        ] },
+      { id: 'martino', name: 'Pat Martino', from: 'El Hombre · Sunny', style: "Endless eighth-note lines and the \"minor conversion\": think of a dominant chord as the minor 7 chord a fifth above it.",
+        items: [
+          { t: 'Minor conversion: Dm7 over G7', key: 'G', scale: 'Mixolydian', pos: 2, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[7, 'm7', 2], [0, '7', 2]], note: "Dm7 (D F A C) over G7 gives the 5, b7, 9 and 11: play the same minor arpeggio over both chords." },
+          { t: 'Dorian eighth-note lines', key: 'D', scale: 'Dorian', pos: 5, ex: 'scale', pattern: 4, bpm: 60, prog: [[0, 'm7', 2], [7, '7', 2]], note: "Dm7 to G7, one Dorian line over both (the same seven notes)." },
+        ] },
+      { id: 'benson', name: 'George Benson', from: "Breezin' · This Masquerade", style: "Bebop speed with soul: minor pentatonic over minor 7 grooves, chromatic runs and octaves.",
+        items: [
+          { t: 'Minor pentatonic over m7', key: 'D', scale: 'Minor pentatonic', pos: 5, ex: 'scale', pattern: 3, bpm: 60, subdiv: 4, prog: [[0, 'm7', 2], [7, '9', 2]], note: "Jazz-funk vamps: the pentatonic played fast and clean, with the 9 of G9 in the mix." },
+          { t: 'Diminished over 7b9', key: 'G', scale: 'Diminished (half-whole)', pos: 2, ex: 'scale', pattern: 3, bpm: 50, prog: [[0, '7b9', 2], [5, 'maj7', 2]], note: "Slick Benson-style dominant lines: symmetric groups of three." },
+        ] },
+    ] },
+  fusion: {
+    main: [
+      { t: 'Dorian', key: 'E', scale: 'Dorian', pos: 7, ex: 'scale', bpm: 60, subdiv: 4, prog: [[0, 'm7', 2], [5, '7', 2]], note: "The minor vamp of fusion." },
+      { t: 'Lydian', key: 'D', scale: 'Lydian', pos: 4, ex: 'scale', bpm: 60, prog: [[0, 'maj7', 2], [2, '', 2]], note: "Major with a #4." },
+      { t: 'Mixolydian', key: 'A', scale: 'Mixolydian', pos: 4, ex: 'scale', bpm: 60, subdiv: 4, prog: [[0, '7', 4]], note: "Funk and dominant grooves." },
+      { t: 'Melodic minor', key: 'A', scale: 'Melodic minor', pos: 5, ex: 'scale', bpm: 60, prog: [[0, 'm6', 2], [0, 'm(maj7)', 2]], note: "The parent scale of modern fusion." },
+      { t: 'Lydian dominant', key: 'D', scale: 'Lydian dominant', pos: 4, ex: 'scale', bpm: 60, prog: [[0, '9', 2], [0, '7#11', 2]], note: "A dominant that floats." },
+      { t: 'Altered', key: 'G', scale: 'Altered', pos: 2, ex: 'scale', bpm: 50, prog: [[0, '7#9', 2], [5, 'maj7', 2]], note: "Maximum tension before the resolution." },
+      { t: 'Whole tone', key: 'E', scale: 'Whole tone', pos: 7, ex: 'scale', pattern: 3, bpm: 60, prog: [[0, '7#5', 2], [5, 'm7', 2]], note: "No gravity at all." },
+      { t: 'Half-whole diminished', key: 'G', scale: 'Diminished (half-whole)', pos: 2, ex: 'scale', pattern: 3, bpm: 50, prog: [[0, '7b9', 4]], note: "Symmetric and angular." },
+    ],
+    players: [
+      { id: 'holdsworth', name: 'Allan Holdsworth', from: 'Metal Fatigue · Road Games', style: "Wide legato lines with almost no picking, built on the melodic minor and its modes, the diminished scale and major-scale modes.",
+        items: [
+          { t: 'Melodic minor', key: 'D', scale: 'Melodic minor', pos: 4, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, 'm(maj7)', 2], [0, 'm6', 2]], note: "D melodic minor: one of the parent scales in the Holdsworth sound." },
+          { t: 'Lydian dominant', key: 'G', scale: 'Lydian dominant', pos: 2, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, '7#11', 4]], note: "The 4th mode of D melodic minor, centered on G." },
+          { t: 'Half-whole diminished legato', key: 'G', scale: 'Diminished (half-whole)', pos: 2, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, '7b9', 4]], note: "Eight notes, alternating half and whole steps: perfect for wide legato stretches." },
+        ] },
+      { id: 'mclaughlin', name: 'John McLaughlin', from: 'Mahavishnu Orchestra · Shakti', style: "Ferocious alternate picking, Indian-influenced exotic scales, odd meters and diminished patterns.",
+        items: [
+          { t: 'Phrygian dominant', key: 'E', scale: 'Phrygian dominant', pos: 0, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, '', 2], [1, '', 2]], note: "E to F: the exotic, Indian-flavored side of the McLaughlin sound." },
+          { t: 'Dorian burn', key: 'A', scale: 'Dorian', pos: 5, ex: 'scale', pattern: 3, bpm: 50, subdiv: 4, prog: [[0, 'm7', 4]], note: "Fast picked groups of three over a minor vamp." },
+          { t: 'Diminished patterns', key: 'A', scale: 'Diminished (half-whole)', pos: 5, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, '7b9', 4]], note: "Symmetric shapes that repeat every three frets." },
+        ] },
+      { id: 'henderson', name: 'Scott Henderson', from: 'Tribal Tech · Dog Party', style: "Blues phrasing with jazz harmony: the altered scale (melodic minor a half step up), diminished sounds and Lydian dominant.",
+        items: [
+          { t: 'Altered dominant', key: 'G', scale: 'Altered', pos: 2, ex: 'scale', bpm: 50, prog: [[0, '7#9', 2], [5, 'maj7', 2]], note: "G altered has the notes of Ab melodic minor: think of the scale a half step above the chord." },
+          { t: 'Diminished on 7b9', key: 'G', scale: 'Diminished (half-whole)', pos: 2, ex: 'scale', pattern: 3, bpm: 50, prog: [[0, '7b9', 2], [5, 'maj7', 2]], note: "Starts on the half step, then alternates." },
+          { t: 'Lydian dominant', key: 'D', scale: 'Lydian dominant', pos: 4, ex: 'scale', bpm: 60, prog: [[0, '9', 2], [0, '7#11', 2]], note: "Over static dominant grooves." },
+        ] },
+      { id: 'govan', name: 'Guthrie Govan', from: 'Erotic Cakes · The Aristocrats', style: "Every technique and every style: Mixolydian and Dorian vamps with bebop chromatics, sweeps and wild outside playing.",
+        items: [
+          { t: 'Dorian vamp', key: 'E', scale: 'Dorian', pos: 7, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, 'm7', 2], [5, '7', 2]], note: "Em7 to A7: the C# lives in the A7." },
+          { t: 'Bebop chromatics over A7', key: 'A', scale: 'Bebop dominant', pos: 4, ex: 'scale', bpm: 60, prog: [[0, '7', 4]], note: "The passing 7 (G#) makes the line swing." },
+        ] },
+      { id: 'howe', name: 'Greg Howe', from: 'Introspection · Tilt (with Richie Kotzen)', style: "Funky fusion legato with hammer-ons from nowhere, Mixolydian and Lydian dominant lines. Greg Howe and Richie Kotzen recorded two albums together.",
+        items: [
+          { t: 'Mixolydian legato', key: 'A', scale: 'Mixolydian', pos: 4, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, '7', 2], [10, '', 2]], note: "A7 to G: funky and fast." },
+          { t: 'Lydian dominant', key: 'D', scale: 'Lydian dominant', pos: 4, ex: 'scale', pattern: 3, bpm: 50, subdiv: 4, prog: [[0, '9', 4]], note: "Bright #11 over D9." },
+        ] },
+      { id: 'metheny', name: 'Pat Metheny', from: 'Bright Size Life · Pat Metheny Group', style: "Singing melodic lines, Lydian major sounds and major 9 arpeggios.",
+        items: [
+          { t: 'Lydian', key: 'D', scale: 'Lydian', pos: 4, ex: 'scale', bpm: 60, prog: [[0, 'maj7', 2], [2, '', 2]], note: "Dmaj7 to E: the G# is the open, bright color." },
+          { t: 'Major 9 arpeggios', key: 'C', scale: 'Ionian (Major)', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, 'maj9', 2], [5, 'maj9', 2]], note: "Cmaj9 and Fmaj9: the 9 on top of a major 7 chord." },
+        ] },
+    ] },
+  country: {
+    main: [
+      { t: 'Major pentatonic', key: 'G', scale: 'Major pentatonic', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: I_IV_V, note: "The base of almost every country solo." },
+      { t: 'The country scale (major blues)', key: 'G', scale: 'Major blues', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: I_IV_V, note: "Major pentatonic plus the b3 that slides into the 3." },
+      { t: 'Mixolydian', key: 'A', scale: 'Mixolydian', pos: 4, ex: 'scale', bpm: 70, prog: DOM_I_IV_V, note: "Dominant-chord twang." },
+      { t: 'Major scale triads', key: 'G', scale: 'Ionian (Major)', pos: 7, ex: 'sweep3', src: -3, view: 'chord', bpm: 50, prog: I_IV_V, note: "Following the chords on the top strings." },
+      { t: 'Chromatic runs (bebop dominant)', key: 'A', scale: 'Bebop dominant', pos: 4, ex: 'scale', bpm: 60, prog: DOM_I_IV_V, note: "Passing tones for fast Nashville runs." },
+      { t: 'Minor pentatonic (country blues)', key: 'E', scale: 'Minor pentatonic', pos: 0, ex: 'scale', view: 'box', bpm: 70, prog: DOM_I_IV_V, note: "The bluesy side, over dominant chords." },
+    ],
+    players: [
+      { id: 'chet', name: 'Chet Atkins', from: 'Mr. Sandman · Windy and Warm', style: "Travis picking: thumb on the bass, fingers on the melody, everything built from chord shapes and arpeggios.",
+        items: [
+          { t: 'Cycle of dominants: "Mr. Sandman" style', key: 'C', scale: 'Ionian (Major)', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[4, '7', 2], [9, '7', 2], [2, '7', 2], [7, '7', 2]], note: "E7–A7–D7–G7, each a fifth above the next. The dashed notes (G#, C#, F#) are what make each one a dominant." },
+          { t: 'Chord tones over I–IV–V', key: 'G', scale: 'Ionian (Major)', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: I_IV_V, note: "G, C and D arpeggios: the shapes the melodies hang on." },
+        ] },
+      { id: 'burton', name: 'James Burton', from: 'Ricky Nelson · Elvis Presley', style: "Chicken pickin' Telecaster: bluesy bends from the minor pentatonic over major chords, mixed with the major side.",
+        items: [
+          { t: 'Minor pentatonic bends in E', key: 'E', scale: 'Minor pentatonic', pos: 0, ex: 'scale', view: 'box', bpm: 70, prog: DOM_I_IV_V, note: "Bend the b3 (G) a quarter step toward the 3 over the E chord." },
+          { t: 'Major blues in E', key: 'E', scale: 'Major blues', pos: 0, ex: 'scale', view: 'box', bpm: 70, prog: DOM_I_IV_V, note: "The open-string G to G# move with snappy hybrid picking." },
+        ] },
+      { id: 'albertlee', name: 'Albert Lee', from: 'Country Boy · Emmylou Harris band', style: "Blazing hybrid picking with open strings, approaching the 3rd from a half step below, Mixolydian runs.",
+        items: [
+          { t: 'Approaching the 3rd from below', key: 'A', scale: 'Major blues', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: DOM_I_IV_V, note: "C to C# (b3 to 3) then up a triplet: a move all over Albert Lee's and Brent Mason's playing." },
+          { t: 'Mixolydian runs', key: 'A', scale: 'Mixolydian', pos: 4, ex: 'scale', pattern: 3, bpm: 60, subdiv: 4, prog: DOM_I_IV_V, note: "Fast groups of three over A7, D7 and E7." },
+        ] },
+      { id: 'mason', name: 'Brent Mason', from: 'Hot Wired · Nashville session king', style: "The most recorded guitarist in Nashville: chicken pickin', chromatic runs and the b3–3 move.",
+        items: [
+          { t: 'Chromatic runs', key: 'A', scale: 'Bebop dominant', pos: 4, ex: 'scale', bpm: 60, prog: DOM_I_IV_V, note: "Descend through the passing 7 (G#) so chord tones fall on the beat." },
+          { t: 'The country scale in G', key: 'G', scale: 'Major blues', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: I_IV_V, note: "Bb to B over G, then resolve to the tonic." },
+        ] },
+      { id: 'gill', name: 'Vince Gill', from: 'Liza Jane · Oklahoma Borderline', style: "Clean, singing major pentatonic lines with open strings and sweet major 6 sounds.",
+        items: [
+          { t: 'Major pentatonic in G', key: 'G', scale: 'Major pentatonic', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: I_IV_V, note: "Melodic, vocal phrases that land on the chord's 3rd." },
+          { t: 'Major 6 arpeggios', key: 'G', scale: 'Major pentatonic', pos: 2, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, '6', 2], [5, '6', 1], [7, '7', 1]], note: "G6, C6 and D7: sweet, open country harmony." },
+        ] },
+      { id: 'paisley', name: 'Brad Paisley', from: 'Mud on the Tires · Play', style: "Modern Telecaster country: chicken pickin', major blues and Mixolydian, with rock speed.",
+        items: [
+          { t: 'Mixolydian in E', key: 'E', scale: 'Mixolydian', pos: 0, ex: 'scale', pattern: 3, bpm: 60, subdiv: 4, prog: DOM_I_IV_V, note: "Open-position E7 runs mixing open strings and fretted notes." },
+          { t: 'Major blues in A', key: 'A', scale: 'Major blues', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: DOM_I_IV_V, note: "The b3–3 country move with the twang of the Tele." },
+        ] },
+    ] },
+};
+const playerById = id => { for (const g in PLAYERS) { const p = PLAYERS[g].players.find(x => x.id === id); if (p) return { g, p }; } return null; };
+const playersFor = scale => { const out = []; for (const g in PLAYERS) PLAYERS[g].players.forEach(p => { if (p.items.some(it => it.scale === scale) && !out.includes(p)) out.push(p); }); return out; };
 const EXNAME = { scale: 'Scale run', arp: 'Arpeggio in position', sweep3: '3-string sweep', sweep5: '5-string sweep' };
 const SRCNAME = { '-2': 'modal arpeggio', '-3': 'follows the chords' };
 const SUBNAME = { 1: 'quarters', 2: 'eighths', 3: 'triplets', 4: '16ths' };
@@ -1058,40 +1319,72 @@ function loadLesson(L) {
   setBpm(L.bpm);
   refreshMusic();
 }
-function syncLessonBtn() { const b = $('lPlay'); if (b) b.textContent = S.exOn || S.padOn ? '■ Stop' : '▶ Play lesson'; }
+function syncLessonBtn() { const b = $('lPlay'); if (b) b.textContent = S.exOn || S.padOn ? '■ Stop' : '▶ Play'; }
+const kname = L => keyName(NOTES.indexOf(L.key));
+function progText(L) { const k = NOTES.indexOf(L.key); return L.prog.map(([r, q, b]) => spell(mod12(k + r), DEG[r], k) + q + (b > 1 ? ` <small>×${b}</small>` : '')).join(' → '); }
+function lessonChips(L) {
+  const ex = EXNAME[L.ex] + ' · ' + (L.ex === 'scale' ? PATNAME[L.pattern || 1] : SRCNAME[String(L.src !== undefined ? L.src : -2)]);
+  return [`${kname(L)} ${L.scale}`, `Position ${L.pos}`, ex, `${L.bpm} BPM · ${SUBNAME[L.subdiv || 2]}`].concat(L.view && VIEWNAME[L.view] ? [`View: ${VIEWNAME[L.view]}`] : []);
+}
+// pick: '' lições, 'main' escalas principais do estilo, ou o id de um guitarrista
+let coursePick = store.get('pick', ''), pickItem = null;
+function itemsHtml(items) {
+  return `<div class="items">${items.map((it, i) => `<div class="item${pickItem === i ? ' cur' : ''}">
+    <h4><span>${it.t}</span><small>${it.ex === 'scale' ? 'Scale' : 'Arpeggio'}</small></h4>
+    <p class="muted">${it.note}</p>
+    ${pickItem === i ? `<div class="chips">${lessonChips(it).map(c => `<span>${c}</span>`).join('')}</div><p><b>Backing</b> ${progText(it)}</p>
+      <div class="row"><button class="primary" id="lPlay"></button></div>` : `<div class="row"><button data-it="${i}">Load on the fretboard</button></div>`}
+  </div>`).join('')}</div>`;
+}
 function renderCourse() {
-  const g = COURSE.find(x => x.id === courseGenre) || COURSE[0];
-  const sel = findLesson(courseSel), cur = sel && sel.g === g ? sel : null;
+  const g = COURSE.find(x => x.id === courseGenre) || COURSE[0], P = PLAYERS[g.id];
+  const pl = P.players.find(p => p.id === coursePick), pick = pl ? pl.id : coursePick === 'main' ? 'main' : '';
+  const sel = findLesson(courseSel), cur = !pick && sel && sel.g === g ? sel : null;
   const genres = COURSE.map(x => `<button data-g="${x.id}" class="${x.id === g.id ? 'on' : ''}">${x.name} <small>${x.lessons.filter(l => done.has(l.id)).length}/${x.lessons.length}</small></button>`).join('');
+  const picker = `<div class="pickrow"><select id="pick" aria-label="Guitarists and scales">
+    <option value="">${g.name}: lessons</option>
+    <optgroup label="Scales"><option value="main"${pick === 'main' ? ' selected' : ''}>Main scales of ${g.name.toLowerCase()}</option></optgroup>
+    <optgroup label="Guitarists">${P.players.map(p => `<option value="${p.id}"${pick === p.id ? ' selected' : ''}>${p.name}</option>`).join('')}</optgroup>
+  </select></div>`;
   const list = g.lessons.map((l, i) => `<button data-l="${l.id}" class="${cur && cur.L === l ? 'cur' : ''}${done.has(l.id) ? ' done' : ''}"><span class="n">${done.has(l.id) ? '✓' : i + 1}</span><span>${l.t}</span></button>`).join('');
   let detail;
-  if (!cur) detail = `<div class="lmeta">${g.lessons.length} lessons</div><h3>${g.name}</h3><p>${g.intro}</p><p class="muted">Pick a lesson: it loads its scale, position, exercise, tempo and backing chords on the fretboard.</p>`;
+  if (pick === 'main') detail = `<div class="lmeta">${g.name} · Scales and arpeggios</div><h3>Main scales of ${g.name.toLowerCase()}</h3>
+    <p>The scales and arpeggios most used in ${g.name.toLowerCase()}. Load one to see it on the fretboard with its own backing chords.</p>${itemsHtml(P.main)}`;
+  else if (pl) detail = `<div class="lmeta">${g.name} · Guitarist</div><h3>${pl.name}</h3><div class="chips"><span>${pl.from}</span></div>
+    <p>${pl.style}</p><p class="muted">Scales and arpeggios in this player's style. Keys and chords are chosen for practice, not a transcription of a solo.</p>${itemsHtml(pl.items)}`;
+  else if (!cur) detail = `<div class="lmeta">${g.lessons.length} lessons</div><h3>${g.name}</h3><p>${g.intro}</p><p class="muted">Pick a lesson: it loads its scale, position, exercise, tempo and backing chords on the fretboard. Use the menu above for the main scales of ${g.name.toLowerCase()} and the scales and arpeggios of its great guitarists.</p>`;
   else {
-    const L = cur.L, k = NOTES.indexOf(L.key);
-    const prog = L.prog.map(([r, q, b]) => spell(mod12(k + r), DEG[r], k) + q + (b > 1 ? ` <small>×${b}</small>` : '')).join(' → ');
-    const ex = EXNAME[L.ex] + ' · ' + (L.ex === 'scale' ? PATNAME[L.pattern || 1] : SRCNAME[String(L.src !== undefined ? L.src : -2)]);
-    const chips = [`${L.key} ${L.scale}`, `Position ${L.pos}`, ex, `${L.bpm} BPM · ${SUBNAME[L.subdiv || 2]}`].concat(L.view && VIEWNAME[L.view] ? [`View: ${VIEWNAME[L.view]}`] : []);
+    const L = cur.L, who = playersFor(L.scale);
     detail = `<div class="lmeta">${g.name} · Lesson ${cur.i + 1} of ${g.lessons.length}</div><h3>${L.t}</h3>
-      <div class="chips">${chips.map(c => `<span>${c}</span>`).join('')}</div>
-      <p><b>Backing</b> ${prog}</p>
+      <div class="chips">${lessonChips(L).map(c => `<span>${c}</span>`).join('')}</div>
+      ${who.length ? `<div class="who"><span class="muted">Played by</span>${who.map(p => `<button data-p="${p.id}">${p.name}</button>`).join('')}</div>` : ''}
+      <p><b>Backing</b> ${progText(L)}</p>
       <p><b>Why</b> ${L.why}</p>
       <p><b>How</b></p><ol>${L.how.map(h => `<li>${h}</li>`).join('')}</ol>
       <p class="goal"><b>Goal</b> ${L.goal}</p>
       <div class="row"><button class="primary" id="lPlay"></button><button class="toggle${done.has(L.id) ? ' on' : ''}" id="lDone">✓ Done</button>${cur.i < g.lessons.length - 1 ? '<button id="lNext">Next lesson →</button>' : ''}</div>`;
   }
-  $('paneCourse').innerHTML = `<div class="genres">${genres}</div><div class="course"><div class="llist">${list}</div><div class="ldetail">${detail}</div></div>`;
-  $('paneCourse').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { courseGenre = b.dataset.g; store.set('genre', courseGenre); renderCourse(); });
-  $('paneCourse').querySelectorAll('[data-l]').forEach(b => b.onclick = () => selectLesson(b.dataset.l));
-  if (cur) {
+  $('paneCourse').innerHTML = `<div class="genres">${genres}</div>${picker}<div class="course"><div class="llist">${list}</div><div class="ldetail">${detail}</div></div>`;
+  const pane = $('paneCourse');
+  pane.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { courseGenre = b.dataset.g; store.set('genre', courseGenre); setPick(''); });
+  pane.querySelectorAll('[data-l]').forEach(b => b.onclick = () => { coursePick = ''; store.set('pick', ''); selectLesson(b.dataset.l); });
+  pane.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const f = playerById(b.dataset.p); courseGenre = f.g; store.set('genre', courseGenre); setPick(f.p.id); });
+  $('pick').onchange = e => setPick(e.target.value);
+  const items = pick === 'main' ? P.main : pl ? pl.items : null;
+  pane.querySelectorAll('[data-it]').forEach(b => b.onclick = () => { pickItem = +b.dataset.it; loadLesson(items[pickItem]); renderCourse(); });
+  if ($('lPlay')) {
     $('lPlay').onclick = () => {
       if (S.exOn || S.padOn) { if (S.exOn) stop(); if (S.padOn) stopPad(); }
       else { startPad(); toggleExercise(); }
     };
-    $('lDone').onclick = () => { done.has(cur.L.id) ? done.delete(cur.L.id) : done.add(cur.L.id); store.set('done', [...done]); renderCourse(); };
-    if ($('lNext')) $('lNext').onclick = () => selectLesson(g.lessons[cur.i + 1].id);
     syncLessonBtn();
   }
+  if (cur) {
+    $('lDone').onclick = () => { done.has(cur.L.id) ? done.delete(cur.L.id) : done.add(cur.L.id); store.set('done', [...done]); renderCourse(); };
+    if ($('lNext')) $('lNext').onclick = () => selectLesson(g.lessons[cur.i + 1].id);
+  }
 }
+function setPick(v) { coursePick = v; pickItem = null; store.set('pick', v); renderCourse(); }
 function selectLesson(id) {
   const f = findLesson(id); if (!f) return;
   courseSel = id; courseGenre = f.g.id; store.set('lesson', id); store.set('genre', courseGenre);

@@ -995,34 +995,40 @@ function drawTab(arpOn) {
   const el = $('tab'); if (!el) return;
   const fing = {}; if (arpOn) arpChords().forEach(c => { fing[c.key] = fingering(seq.filter(n => n.d === c.key)); });
   const names = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.name])) : {};
-  const blockN = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.N])) : {}; // estudo completo: título a cada número de cordas
-  let prevN;
-  const cell = (n, s) => `<span>${n && n.s === s ? `<em>${n.f}</em>` : ''}</span>`;
+  const blockN = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.N])) : {}; // estudo completo: um bloco por número de cordas
+  const cell =(n, s) => `<span>${n && n.s === s ? `<em>${n.f}</em>` : ''}</span>`;
   const STR = [5, 4, 3, 2, 1, 0];
   // colunas da tablatura inteira; depois quebra em linhas que cabem na largura (sem rolagem), de preferência na troca de acorde
-  const cols = []; let prevD;
-  seq.forEach((n, i) => {
-    const head = arpOn && n.d !== prevD ? names[n.d] : '';
-    const N = blockN[n.d], newBlock = N && N !== prevN; prevN = N;
-    if (newBlock) cols.push({ sec: `${N} strings` });
-    else if (head && i > 0) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
-    prevD = n.d;
-    const f = arpOn ? (fing[n.d] ? fing[n.d](n.s, n.f) : undefined) : n.fg;
-    cols.push({ html: `<div class="tcol${S.exOn && i === activeIdx ? ' playing' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
-  });
   const lab = `<div class="tcol lab"><b></b>${['e', 'B', 'G', 'D', 'A', 'E'].map(x => `<span>${x}</span>`).join('')}<i>fing.</i></div>`;
   const per = Math.max(8, Math.floor(((el.clientWidth || 1100) - 44) / 22));
-  const rows = []; let row = [];
-  cols.forEach((c, i) => {
-    if (c.sec) { if (row.length) rows.push(row); row = []; rows.push(c); return; }
-    if (row.length >= per) { // se houver uma divisória de acorde nas últimas colunas, quebra nela
-      const k = row.map(x => x.bar).lastIndexOf(true);
-      if (k > per * 0.6) { rows.push(row.slice(0, k)); row = row.slice(k + 1); } else { rows.push(row); row = []; }
-    }
-    if (!(c.bar && row.length === 0)) row.push(c);
-  });
-  if (row.length) rows.push(row);
-  el.innerHTML = rows.map(r => r.sec ? `<div class="tsec">${r.sec}</div>` : `<div class="trow">${lab}${r.map(c => c.html).join('')}</div>`).join('');
+  // estudo completo: mostra só o bloco que está tocando (6, 5, 4, 3 ou 2 cordas), para o braço continuar na tela
+  const blocks = [...new Set(Object.values(blockN))].filter(Boolean);
+  const showN = (active && S.exOn && blockN[active.d]) || blocks[0];
+  const layout = N => {
+    const cols = []; let prevD;
+    seq.forEach((n, i) => {
+      if (N && blockN[n.d] !== N) return;
+      const head = arpOn && n.d !== prevD ? names[n.d] : '';
+      if (head && cols.length) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
+      prevD = n.d;
+      const f = arpOn ? (fing[n.d] ? fing[n.d](n.s, n.f) : undefined) : n.fg;
+      cols.push({ html: `<div class="tcol${S.exOn && i === activeIdx ? ' playing' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
+    });
+    const rows = []; let row = [];
+    cols.forEach(c => {
+      if (row.length >= per) { // se houver uma divisória de acorde nas últimas colunas, quebra nela
+        const k = row.map(x => x.bar).lastIndexOf(true);
+        if (k > per * 0.6) { rows.push(row.slice(0, k)); row = row.slice(k + 1); } else { rows.push(row); row = []; }
+      }
+      if (!(c.bar && row.length === 0)) row.push(c);
+    });
+    if (row.length) rows.push(row);
+    return rows;
+  };
+  const rows = layout(showN), most = blocks.length ? Math.max(...blocks.map(N => layout(N).length)) : rows.length;
+  const title = showN ? `<div class="tsec">${showN} strings · block ${blocks.indexOf(showN) + 1} of ${blocks.length}</div>` : '';
+  const spare = `<div class="trow" style="visibility:hidden">${lab}</div>`.repeat(Math.max(0, most - rows.length)); // reserva a altura do maior bloco: a página não pula
+  el.innerHTML = title + rows.map(r => `<div class="trow">${lab}${r.map(c => c.html).join('')}</div>`).join('') + spare;
 }
 addEventListener('resize', () => drawTab(S.exType !== 'scale'));
 const FB = { x0: 46, x1: 1186, y0: 18, y1: 168 };

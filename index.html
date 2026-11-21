@@ -138,7 +138,13 @@ details[open] summary { margin-bottom: 8px; }
 .fhead h1 { flex: none; white-space: nowrap; }
 #scaleSub { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #viewHint { flex-basis: 100%; line-height: 1.35; height: 2.7em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-@media (max-width: 900px) { #viewHint { height: 5.4em; -webkit-line-clamp: 4; } #fretbar .now { width: 150px; } }
+@media (max-width: 900px) { #viewHint { height: 5.4em; -webkit-line-clamp: 4; } #fretbar .now { width: 150px; }
+  /* celular: grau, acorde e modo inteiros, em até 2 linhas com altura reservada (a página não pula ao trocar de acorde) */
+  .fhead { flex-wrap: wrap; row-gap: 2px; }
+  .fhead h1 { flex: 0 1 100%; white-space: normal; }
+  #scaleSub { flex-basis: 100%; white-space: normal; overflow: visible; line-height: 1.35; height: 2.7em; }
+}
+@media (max-width: 340px) { #scaleSub { height: 4.05em; } }
 .legend i.o { border: 1.5px dashed #c9ccd1; }
 .bgnow small { color: var(--muted); font-size: 12px; }
 

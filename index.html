@@ -220,15 +220,19 @@ details[open] summary { margin-bottom: 8px; }
     <select id="exType" aria-label="Exercise">
       <option value="scale">Scale run</option>
       <option value="arp">Arpeggio in position</option>
-      <option value="sweep5">Sweep arpeggio · 5 strings</option>
-      <option value="sweep3">Sweep arpeggio · 3 strings</option>
       <option value="sweep6">Sweep arpeggio · 6 strings</option>
+      <option value="sweep5">Sweep arpeggio · 5 strings</option>
+      <option value="sweep4">Sweep arpeggio · 4 strings</option>
+      <option value="sweep3">Sweep arpeggio · 3 strings</option>
+      <option value="sweep2">Sweep arpeggio · 2 strings</option>
       <option value="tap">Tapping arpeggio · one string</option>
       <option value="tapx">Tapping arpeggio · string skipping</option>
     </select>
     <select id="pattern" aria-label="Pattern"><option value="1">Straight</option><option value="3">Groups of 3</option><option value="4">Groups of 4</option></select>
     <select id="fsys" aria-label="Fingering system"><option value="pos7">Fingering: one position per degree</option><option value="nps3">Fingering: 3 notes per string</option><option value="caged">Fingering: CAGED (5 shapes, hand still)</option></select>
     <select id="degree" aria-label="Arpeggio degree" hidden></select>
+    <select id="arpKind" aria-label="Arpeggio type" hidden><option value="triad">Triads (1 3 5)</option><option value="seventh">7th chords (1 3 5 7)</option></select>
+    <select id="sstr" aria-label="Start string" hidden></select>
     <label class="k" for="pos">Position</label><input type="range" id="pos" min="0" max="12" value="5" step="1"><span id="posShow" class="k"></span>
     <select id="view" aria-label="Fretboard view">
       <option value="full">View: whole scale</option>
@@ -392,7 +396,7 @@ const TUNING = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4, corda grave prime
 const FRETS = 17;
 
 const S = { view: 'full', sound: 'nylon', bpm: 60, beats: 4, subdiv: 2, running: false, key: 4, scale: SCALES[0], labels: 'deg', pos: 5,
-  click: true, fsys: 'pos7', exOn: false, exType: 'scale', pattern: 1, degree: -2, padOn: false, builder: false, lesson: null };
+  click: true, fsys: 'pos7', arpKind: 'triad', sstr: null, exOn: false, exType: 'scale', pattern: 1, degree: -2, padOn: false, builder: false, lesson: null };
 const $ = id => document.getElementById(id);
 const mod12 = n => ((n % 12) + 12) % 12;
 const deg = (iv, sc = S.scale) => (sc.names && sc.names[iv]) || DEG[iv];
@@ -697,12 +701,27 @@ function grouped(list, g) {
 }
 // arpejos do exercício: -2 modal (com a nota de cor), -3 acordes da base, -1 todas as tríades, d tríade do grau d
 const modalPcs = () => S.scale.arp.ivs.map(iv => mod12(S.key + iv));
+// grau d da escala empilhado em terças da própria escala (nota sim, nota não): tríade (3 notas) ou tétrade (4)
+const SLOT = [{}, { 1: 'b2', 2: '2', 3: 'b3', 4: '3', 5: '4', 6: '#4' }, { 5: '4', 6: 'b5', 7: '5', 8: '#5', 9: '6' }, { 8: 'b6', 9: 'bb7', 10: 'b7', 11: '7', 0: 'R' }];
+const harmSteps = () => S.scale.steps.filter(iv => iv !== S.scale.passing); // a nota de passagem (bebop, blues) não é grau da harmonia
+function degArp(d) {
+  const st = harmSteps(), n = st.length, size = S.arpKind === 'seventh' ? 4 : 3;
+  const ivs = [];
+  for (let k = 0; k < size; k++) { const i = d + 2 * k; ivs.push(st[i % n] + 12 * Math.floor(i / n) - st[d]); }
+  const root = mod12(S.key + st[d]), pcs = ivs.map(iv => mod12(root + iv));
+  const roles = ivs.map((iv, k) => k === 0 ? 'R' : SLOT[k][mod12(iv)] || DEG[mod12(iv)]);
+  if (size === 4 && roles[1] === 'b3' && roles[2] === 'b5' && roles[3] === 'bb7') roles[3] = 'bb7'; else if (roles[3] === 'bb7') roles[3] = '6';
+  const key = ivs.map(mod12).join(',');
+  const q = Object.keys(QUAL).find(k => QUAL[k].ivs.map(mod12).join(',') === key);
+  const name = noteAt(root) + (q !== undefined ? q : `(${roles.slice(1).join(' ')})`);
+  return { key: 't' + d, pcs, roles, name, d };
+}
 function arpChords() {
   const sc = S.scale;
   if (S.degree === -2) return [{ key: 'm', pcs: modalPcs(), roles: sc.arp.ivs.map(iv => deg(iv)), name: modalName() }];
   if (S.degree === -3) return bgChords().map((c, i) => ({ key: 'c' + i, ...chordInfo(c) }));
-  const ds = S.degree === -1 ? [0, 1, 2, 3, 4, 5, 6] : [S.degree];
-  return ds.map(d => ({ key: 't' + d, ...chordInfo(degChord(d)) }));
+  const n = harmSteps().length, ds = S.degree === -1 ? Array.from({ length: n }, (_, d) => d) : [S.degree]; // -1: percorre todos os graus (os modos)
+  return ds.map(degArp);
 }
 // arpejo na posição: as notas do acorde dentro da janela, da fundamental mais grave para cima, e volta
 function posArp(pcs, tag) {
@@ -717,28 +736,40 @@ function posArp(pcs, tag) {
 }
 // arpejo em sweep: uma nota por corda subindo, mais uma ou duas na corda de cima (dentro do alcance), e volta
 function sweepTones(pcs, tag, strings) {
-  const tones = new Set(pcs), rootPc = pcs[0];
+  // começa na fundamental dentro da posição; se o desenho não couber inteiro (perto da casa 17), tenta as outras notas
+  // do acorde na corda inicial, primeiro dentro da posição e depois cada vez mais longe dela
+  const first = strings[0], rootPc = pcs[0], tones = new Set(pcs), starts = [];
+  for (let f = 0; f <= FRETS; f++) { const m = TUNING[first] + f; if (tones.has(mod12(m))) starts.push({ s: first, f, m }); }
+  const dist = f => f < S.pos ? S.pos - f : f > S.pos + 5 ? f - S.pos - 5 : 0;
+  starts.sort((x, y) => dist(x.f) - dist(y.f) || (mod12(y.m) === rootPc) - (mod12(x.m) === rootPc) || x.f - y.f);
+  let best = [];
+  for (const st of starts) { const up = sweepFrom(st, tones, strings); if (new Set(up.map(x => x.s)).size === strings.length) { best = up; break; } if (up.length > best.length) best = up; }
+  return best.concat(best.slice(0, -1).reverse().slice(0, -1)).map(x => ({ ...x, d: tag }));
+}
+function sweepFrom(start, tones, strings) {
   const isTone = m => tones.has(mod12(m));
-  const first = strings[0], lo = Math.max(0, S.pos - 1), hi = Math.min(FRETS, S.pos + 6);
-  const find = (a, b, ok) => { for (let f = Math.max(0, a); f <= Math.min(FRETS, b); f++) { const m = TUNING[first] + f; if (ok(m)) return { s: first, f, m }; } return null; };
-  const isRoot = m => mod12(m) === rootPc, box = [S.pos, S.pos + 5];
-  let start = find(...box, isRoot) || find(...box, isTone) || find(lo, hi, isRoot) || find(lo, hi, isTone);
-  if (!start) return [];
   const up = [start]; let prev = start;
+  const span = (list, f) => { const fr = list.map(x => x.f).concat(f).filter(x => x > 0); return fr.length ? Math.max(...fr) - Math.min(...fr) : 0; }; // corda solta não conta
   for (const s of strings.slice(1)) {
-    // primeiro dentro da posição escolhida (o desenho não escapa da caixa); se não houver, até 4 casas de distância
-    const pick = (a, b) => { let best = null; for (let f = Math.max(0, a); f <= Math.min(FRETS, b); f++) { const m = TUNING[s] + f; if (m > prev.m && isTone(m) && (!best || m < best.m)) best = { s, f, m }; } return best; };
-    const best = pick(Math.max(S.pos, prev.f - 4), Math.min(S.pos + 5, prev.f + 4)) || pick(Math.max(lo, prev.f - 4), Math.min(hi, prev.f + 4)) || pick(prev.f - 4, prev.f + 4);
+    // nota do acorde acima da anterior, nesta ordem: o desenho cabe numa mão (até 5 casas); uma nota do acorde que
+    // ainda não apareceu (a tríade em 3 cordas tem as 3 notas); perto da mão (casa da nota anterior); dentro da posição
+    const cands = [];
+    for (let f = 0; f <= FRETS; f++) { const m = TUNING[s] + f; if (m > prev.m && isTone(m)) cands.push({ s, f, m }); }
+    const used = new Set(up.map(x => mod12(x.m))), outBox = f => f < S.pos ? S.pos - f : f > S.pos + 5 ? f - S.pos - 5 : 0;
+    const pool = [c => span(up, c.f) <= 4, c => span(up, c.f) <= 5, c => Math.abs(c.f - prev.f) <= 4].map(ok => cands.filter(ok)).find(l => l.length) || [];
+    pool.sort((x, y) => (used.has(mod12(x.m)) - used.has(mod12(y.m))) || (Math.abs(x.f - prev.f) - Math.abs(y.f - prev.f)) || (outBox(x.f) - outBox(y.f)) || (x.m - y.m));
+    const best = pool[0];
     if (!best) break;
     up.push(best); prev = best;
   }
-  const top = strings[strings.length - 1], minF = Math.min(...up.map(x => x.f));
+  // mais uma ou duas notas do acorde na corda de cima, só dentro do alcance da mão
+  const top = strings[strings.length - 1];
   for (let k = 0; k < 2; k++) {
     let nx = null;
-    for (let f = prev.f + 1; f <= Math.min(FRETS, minF + 5, Math.max(S.pos + 5, prev.f)) && !nx; f++) { const m = TUNING[top] + f; if (isTone(m)) nx = { s: top, f, m }; }
+    for (let f = prev.f + 1; f <= FRETS && !nx; f++) { const m = TUNING[top] + f; if (isTone(m) && span(up, f) <= 4) nx = { s: top, f, m }; }
     if (!nx) break; up.push(nx); prev = nx;
   }
-  return up.concat(up.slice(0, -1).reverse().slice(0, -1)).map(x => ({ ...x, d: tag }));
+  return up;
 }
 // tapping numa corda (estilo Eruption): indicador e outro dedo da mão esquerda em duas notas do acorde e a mão
 // direita bate (T) na nota seguinte do acorde, mais aguda. Ordem: T, puxa para o indicador, martela o outro dedo.
@@ -778,10 +809,14 @@ function tapSkip(pcs, tag) {
   if (!out.length) return [];
   return out.flat().concat(out.slice(0, -1).reverse().flat());
 }
+// sweep em N cordas a partir da corda escolhida (sem escolha: as N cordas mais agudas)
+const sweepN = () => +S.exType.slice(5);
+const sweepStart = () => { const N = sweepN(); return S.sstr !== null && S.sstr <= 6 - N ? S.sstr : 6 - N; };
+const sweepStrings = () => Array.from({ length: sweepN() }, (_, i) => sweepStart() + i);
 function buildSeq() {
   if (S.exType === 'scale') seq = grouped(scaleNotes(), S.pattern);
   else {
-    const strings = S.exType === 'sweep6' ? [0, 1, 2, 3, 4, 5] : S.exType === 'sweep5' ? [1, 2, 3, 4, 5] : [3, 4, 5];
+    const strings = sweepStrings();
     seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : S.exType === 'tap' ? tapTones(ch.pcs, ch.key) : S.exType === 'tapx' ? tapSkip(ch.pcs, ch.key) : sweepTones(ch.pcs, ch.key, strings));
   }
   seqIdx = 0; activeIdx = -1;
@@ -1056,12 +1091,15 @@ function drawTheory() {
     <p><b>Use it</b> ${sc.use}</p>
     <p><b>Background</b> ${vamp}</p>
     <p class="tip">${sc.tip}</p>`;
-  const seven = sc.steps.length === 7;
+  const n = harmSteps().length, seven = n === 7, colorPc = mod12(S.key + sc.color);
   const bgNames = [...new Set(bgChords().map(chordLabel))].join(' · ');
+  const kind = S.arpKind === 'seventh' ? '7th chords' : 'triads';
+  const degName = d => seven ? ROMAN[d] : deg(harmSteps()[d]);
   $('degree').innerHTML = `<option value="-2">Modal arpeggio · ${modalName()}${sc.arp.ivs.includes(sc.color) ? ` (has ${deg(sc.color)})` : ''}</option>` +
     `<option value="-3">Follow the background · ${bgNames}</option>` +
-    (seven ? `<option value="-1">All degree triads</option>` + Array.from({ length: 7 }, (_, d) => `<option value="${d}">${triadHasColor(d) ? '★ ' : ''}${ROMAN[d]} · ${chordName(d)}${triadHasColor(d) ? ` (has ${deg(sc.color)})` : ' (no color note)'}</option>`).join('') : '');
-  if (!seven && (S.degree >= 0 || S.degree === -1)) S.degree = -2;
+    `<option value="-1">All ${n} degrees in a row · ${kind}</option>` +
+    Array.from({ length: n }, (_, d) => { const a = degArp(d), has = a.pcs.includes(colorPc); return `<option value="${d}">${has ? '★ ' : ''}${degName(d)} · ${a.name}${has ? ` (has ${deg(sc.color)})` : ''}</option>`; }).join('');
+  if (S.degree >= n) S.degree = -2;
   $('degree').value = String(S.degree);
   document.querySelectorAll('.modemap button').forEach(b => b.onclick = () => { // troca para o modo irmão (mesmas notas)
     const k = +b.dataset.k, parent = mod12(S.key - MAJOR[S.scale.mode]);
@@ -1106,7 +1144,7 @@ function showPos() {
   $('posShow').textContent = `Pos ${set.indexOf(iv) + 1}/${set.length} · from ${deg(iv)}${shape} · fret ${S.pos}`;
 }
 function stepPos(d) { const fr = posFrets(), i = Math.max(0, Math.min(fr.length - 1, fr.indexOf(S.pos) + d)); S.pos = fr[i]; $('pos').value = i; showPos(); buildSeq(); }
-function refreshMusic() { syncPos(); drawTheory(); buildSeq(); if (S.padOn) startPad(); }
+function refreshMusic() { syncPos(); syncExUi(); drawTheory(); buildSeq(); if (S.padOn) startPad(); }
 NOTES.forEach((n, i) => $('key').insertAdjacentHTML('beforeend', `<option value="${i}">${keyName(i)}</option>`));
 SCALES.forEach((s, i) => $('scale').insertAdjacentHTML('beforeend', `<option value="${i}">${s.name}</option>`));
 $('key').value = S.key;
@@ -1122,7 +1160,19 @@ $('view').onchange = e => { S.view = e.target.value; drawFret(); };
 $('sound').onchange = e => { S.sound = e.target.value; };
 $('pattern').onchange = e => { S.pattern = +e.target.value; buildSeq(); };
 $('degree').onchange = e => { S.degree = +e.target.value; buildSeq(); };
-function syncExUi() { const sw = S.exType !== 'scale'; $('pattern').hidden = sw; $('degree').hidden = !sw; $('fsys').hidden = sw || !big7(); }
+$('arpKind').onchange = e => { S.arpKind = e.target.value; drawTheory(); buildSeq(); };
+$('sstr').onchange = e => { S.sstr = +e.target.value; buildSeq(); };
+function syncExUi() {
+  const sw = S.exType !== 'scale', sweep = S.exType.startsWith('sweep');
+  $('pattern').hidden = sw; $('degree').hidden = !sw; $('fsys').hidden = sw || !big7();
+  $('arpKind').hidden = !sw || S.exType.startsWith('tap'); $('arpKind').value = S.arpKind;
+  $('sstr').hidden = !sweep;
+  if (sweep) { // a corda inicial vai do Mi grave até a mais aguda em que ainda cabem N cordas
+    const N = sweepN(), names = ['low E', 'A', 'D', 'G', 'B'];
+    $('sstr').innerHTML = Array.from({ length: 7 - N }, (_, s0) => `<option value="${s0}">From the ${names[s0]} string</option>`).join('');
+    $('sstr').value = String(sweepStart());
+  }
+}
 const store0 = (k, d) => { try { const v = localStorage.getItem('pr.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
 const store0set = (k, v) => { try { localStorage.setItem('pr.' + k, JSON.stringify(v)); } catch (e) {} };
 S.fsys = store0('fsys', 'pos7'); $('fsys').value = S.fsys; // a digitação escolhida fica guardada neste navegador
@@ -1706,6 +1756,7 @@ function loadLesson(L) {
   S.exType = L.ex; $('exType').value = L.ex; syncExUi();
   S.pattern = L.pattern || 1; $('pattern').value = String(S.pattern);
   S.degree = L.src !== undefined ? L.src : -2;
+  S.sstr = L.sstr !== undefined ? L.sstr : null; S.arpKind = L.kind || 'triad';
   S.view = L.view || 'full'; $('view').value = S.view;
   S.subdiv = L.subdiv || 2; $('subdiv').value = String(S.subdiv);
   setBpm(L.bpm);

@@ -238,6 +238,7 @@ details[open] summary { margin-bottom: 8px; }
     <select id="pattern" aria-label="Pattern"><option value="1">Straight</option><option value="3">Groups of 3</option><option value="4">Groups of 4</option></select>
     <select id="fsys" aria-label="Fingering system"><option value="pos7">Fingering: one position per degree</option><option value="nps3">Fingering: 3 notes per string</option><option value="caged">Fingering: CAGED (5 shapes, hand still)</option></select>
     <select id="degree" aria-label="Arpeggio degree" hidden></select>
+    <select id="bgdeg" aria-label="Backing chord" hidden></select>
     <select id="arpKind" aria-label="Arpeggio type" hidden><option value="triad">Triads (1 3 5)</option><option value="seventh">7th chords (1 3 5 7)</option></select>
     <select id="sstr" aria-label="Start string" hidden></select>
     <label class="k" for="pos">Position</label><input type="range" id="pos" min="0" max="12" value="5" step="1"><span id="posShow" class="k"></span>
@@ -404,7 +405,7 @@ const TUNING = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4, corda grave prime
 const FRETS = 17;
 
 const S = { view: 'full', sound: 'nylon', bpm: 60, beats: 4, subdiv: 2, running: false, key: 4, scale: SCALES[0], labels: 'deg', pos: 5,
-  click: true, fsys: 'pos7', arpKind: 'triad', sstr: null, exOn: false, exType: 'scale', pattern: 1, degree: -2, padOn: false, builder: false, lesson: null };
+  click: true, fsys: 'pos7', arpKind: 'triad', sstr: null, bgDeg: -3, exOn: false, exType: 'scale', pattern: 1, degree: -2, padOn: false, builder: false, lesson: null };
 const $ = id => document.getElementById(id);
 const mod12 = n => ((n % 12) + 12) % 12;
 const deg = (iv, sc = S.scale) => (sc.names && sc.names[iv]) || DEG[iv];
@@ -535,9 +536,17 @@ function degChord(d) { // tríade do grau d da escala
   return { r: st[d % st.length], q: th === 3 ? (fi === 6 ? 'dim' : 'm') : th === 4 && fi === 8 ? 'aug' : '', bars: 2 };
 }
 // a base toca a progressão da lição; sem lição, a da escala; sem nenhuma, as tríades do vamp
-const followDegrees = () => S.exType !== 'scale' && S.degree !== -2 && S.degree !== -3;
+const followDegrees = () => S.exType === 'scale' ? S.bgDeg !== -3 : S.degree !== -2 && S.degree !== -3;
+const degreeList = sel => (sel === -1 ? harmSteps().map((_, d) => d) : [sel]).map(d => degArp(d));
 function bgChords() {
-  if (followDegrees()) return arpChords().map(a => ({ r: a.r, q: '', ivs: a.ivs, roles: a.roles, name: a.name, roman: a.roman, bars: 1, tag: a.key }));
+  if (followDegrees()) {
+    const list = S.exType === 'scale' ? degreeList(S.bgDeg) : arpChords(), bars = S.exType === 'scale' && S.bgDeg >= 0 ? 2 : 1;
+    return list.map(a => ({ r: a.r, q: '', ivs: a.ivs, roles: a.roles, name: a.name, roman: a.roman, bars, tag: a.key }));
+  }
+  return baseBgChords();
+}
+// a base da lição ou da escala (sem escolha de grau)
+function baseBgChords() {
   const src = (S.lesson && S.lesson.prog) || S.scale.bg;
   if (src) return src.map(([r, q, bars]) => ({ r, q, bars: bars || 2 }));
   return (S.scale.vamp || [0]).map(degChord);
@@ -859,7 +868,7 @@ function schedule() {
     if (S.click) bell(nextTime, level);
     let note = null, idx = -1;
     if (S.exOn && seq.length) { idx = seqIdx % seq.length; note = seq[idx]; seqIdx++; tone(note.m, nextTime, 0.4, 2.6); }
-    if (note && S.padOn && followDegrees() && note.d !== padTag) { // novo grau no arpejo: a base troca para o acorde dele
+    if (note && S.padOn && S.exType !== 'scale' && followDegrees() && note.d !== padTag) { // novo grau no arpejo: a base troca para o acorde dele
       padTag = note.d; const list = bgChords(), i = list.findIndex(c => c.tag === note.d);
       if (i >= 0) { padIdx = i; padChord(list[i], nextTime); setTimeout(updateBgNow, Math.max(0, (nextTime - ctx.currentTime) * 1000)); }
     }
@@ -1097,9 +1106,10 @@ function harmonyTable() {
   const rows = st.map((iv, d) => {
     const t = degArp(d, 'triad'), q = degArp(d, 'seventh'), has = q.pcs.includes(colorPc);
     const mode = fam ? fam.names[(fam.i + d) % fam.names.length] : '';
-    return `<tr data-deg="${d}" class="${S.degree === d ? 'cur' : ''}"><td>${q.roman}</td><td>${noteAt(mod12(S.key + iv))}</td><td>${t.name}</td><td>${has ? '★ ' : ''}${q.name}</td>${fam ? `<td>${mode}</td>` : ''}</tr>`;
+    const cur = S.exType === 'scale' ? S.bgDeg === d : S.degree === d;
+    return `<tr data-deg="${d}" class="${cur ? 'cur' : ''}"><td>${q.roman}</td><td>${noteAt(mod12(S.key + iv))}</td><td>${t.name}</td><td>${has ? '★ ' : ''}${q.name}</td>${fam ? `<td>${mode}</td>` : ''}</tr>`;
   }).join('');
-  return `<div class="harm"><p><b>Chords on each degree</b> click a row to play its arpeggio over that chord</p>
+  return `<div class="harm"><p><b>Chords on each degree</b> click a row to play over that chord (scale run: the scale over it; arpeggio: its arpeggio)</p>
     ${fam ? '' : '<p class="maphint">This scale has no seven modes: the chords are stacked from every other note of the scale, so pentatonic and symmetric scales give open, quartal or symmetric sounds.</p>'}
     <table><thead><tr><th>Degree</th><th>Note</th><th>Triad</th><th>7th chord</th>${fam ? '<th>Mode from here</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -1136,6 +1146,12 @@ function drawTheory() {
   const bgNames = [...new Set(bgChords().map(chordLabel))].join(' · ');
   const kind = S.arpKind === 'seventh' ? '7th chords' : 'triads';
   const degName = d => seven ? ROMAN[d] : deg(harmSteps()[d]);
+  const baseNames = [...new Set(baseBgChords().map(chordLabel))].join(' → ');
+  $('bgdeg').innerHTML = `<option value="-3">Backing: ${S.lesson && S.lesson.prog ? 'lesson' : 'scale'} chords · ${baseNames}</option>` +
+    `<option value="-1">Backing: all ${n} degrees in a row · ${kind}</option>` +
+    Array.from({ length: n }, (_, d) => { const a = degArp(d); return `<option value="${d}">Backing: ${a.roman} · ${a.name}</option>`; }).join('');
+  if (S.bgDeg >= n) S.bgDeg = -3;
+  $('bgdeg').value = String(S.bgDeg);
   $('degree').innerHTML = `<option value="-2">Modal arpeggio · ${modalName()}${sc.arp.ivs.includes(sc.color) ? ` (has ${deg(sc.color)})` : ''}</option>` +
     `<option value="-3">Follow the background · ${bgNames}</option>` +
     `<option value="-1">All ${n} degrees in a row · ${kind}</option>` +
@@ -1148,10 +1164,11 @@ function drawTheory() {
     const idx = SCALES.findIndex(x => x.mode === k); S.scale = SCALES[idx]; $('scale').value = idx; S.degree = -2; refreshMusic();
     audio(); tone(48 + S.key, ctx.currentTime + 0.01, 0.4, 2.5);
   });
-  document.querySelectorAll('.harm tr[data-deg]').forEach(tr => tr.onclick = () => { // toca o arpejo do grau com o acorde por baixo
-    S.degree = +tr.dataset.deg; $('degree').value = String(S.degree);
-    if (S.exType === 'scale') { S.exType = 'arp'; $('exType').value = 'arp'; syncExUi(); }
-    drawTheory(); buildSeq(); if (S.padOn) startPad();
+  document.querySelectorAll('.harm tr[data-deg]').forEach(tr => tr.onclick = () => {
+    const d = +tr.dataset.deg;
+    if (S.exType === 'scale') { S.bgDeg = d; syncExUi(); drawTheory(); drawFret(); } // escala por cima desse acorde
+    else { S.degree = d; $('degree').value = String(d); drawTheory(); buildSeq(); } // arpejo desse grau com o acorde por baixo
+    if (S.padOn) startPad();
   });
   updateBgNow();
 }
@@ -1206,12 +1223,14 @@ $('view').onchange = e => { S.view = e.target.value; drawFret(); };
 $('sound').onchange = e => { S.sound = e.target.value; };
 $('pattern').onchange = e => { S.pattern = +e.target.value; buildSeq(); };
 $('degree').onchange = e => { S.degree = +e.target.value; buildSeq(); };
-$('arpKind').onchange = e => { S.arpKind = e.target.value; drawTheory(); buildSeq(); };
+$('arpKind').onchange = e => { S.arpKind = e.target.value; drawTheory(); buildSeq(); if (S.padOn) startPad(); };
+$('bgdeg').onchange = e => { S.bgDeg = +e.target.value; syncExUi(); drawTheory(); drawFret(); if (S.padOn) startPad(); };
 $('sstr').onchange = e => { S.sstr = +e.target.value; buildSeq(); };
 function syncExUi() {
   const sw = S.exType !== 'scale', sweep = S.exType.startsWith('sweep');
   $('pattern').hidden = sw; $('degree').hidden = !sw; $('fsys').hidden = sw || !big7();
-  $('arpKind').hidden = !sw || S.exType.startsWith('tap'); $('arpKind').value = S.arpKind;
+  $('bgdeg').hidden = sw; // no scale run: o acorde que toca por baixo
+  $('arpKind').hidden = S.exType.startsWith('tap') || (!sw && S.bgDeg === -3); $('arpKind').value = S.arpKind;
   $('sstr').hidden = !sweep;
   if (sweep) { // a corda inicial vai do Mi grave até a mais aguda em que ainda cabem N cordas
     const N = sweepN(), names = ['low E', 'A', 'D', 'G', 'B'];
@@ -1243,7 +1262,7 @@ function padTick() { const list = bgChords(); padIdx = padStep % list.length; pa
 let padTag = null; // grau do arpejo que a base está tocando
 function padWait() {
   if (!S.padOn) return;
-  if (followDegrees() && S.exOn) { padTimer = setTimeout(padWait, 500); return; } // o arpejo é quem troca o acorde
+  if (S.exType !== 'scale' && followDegrees() && S.exOn) { padTimer = setTimeout(padWait, 500); return; } // no arpejo por grau, o arpejo é quem troca o acorde
   const list = bgChords(), c = list[padIdx % list.length];
   if (S.bpm < 1) { padTimer = setTimeout(padWait, 500); return; }
   padTimer = setTimeout(() => { padStep++; padTick(); }, c.bars * S.beats * 60000 / S.bpm);
@@ -1804,7 +1823,7 @@ function loadLesson(L) {
   S.exType = L.ex; $('exType').value = L.ex; syncExUi();
   S.pattern = L.pattern || 1; $('pattern').value = String(S.pattern);
   S.degree = L.src !== undefined ? L.src : -2;
-  S.sstr = L.sstr !== undefined ? L.sstr : null; S.arpKind = L.kind || 'triad';
+  S.sstr = L.sstr !== undefined ? L.sstr : null; S.arpKind = L.kind || 'triad'; S.bgDeg = L.bgDeg !== undefined ? L.bgDeg : -3;
   S.view = L.view || 'full'; $('view').value = S.view;
   S.subdiv = L.subdiv || 2; $('subdiv').value = String(S.subdiv);
   setBpm(L.bpm);

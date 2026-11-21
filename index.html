@@ -111,6 +111,7 @@ details[open] summary { margin-bottom: 8px; }
 .tcol { display: flex; flex-direction: column; align-items: stretch; width: 22px; flex: none; }
 .tcol b, .tcol i { height: 15px; line-height: 15px; font-size: 11px; text-align: center; font-style: normal; color: var(--muted); white-space: nowrap; overflow: visible; }
 .tcol b { color: var(--accent); text-align: left; font-family: var(--sans); font-weight: 600; }
+.tsec { margin: 10px 0 2px; font-size: 13px; font-weight: 700; color: var(--accent); font-family: var(--sans); }
 .tcol span { height: 14px; line-height: 14px; text-align: center; background: linear-gradient(#5a616b, #5a616b) center / 100% 1px no-repeat; }
 .tcol span em { font-style: normal; background: var(--panel); padding: 0 2px; color: var(--text); font-weight: 600; }
 .tcol.lab { width: 38px; }
@@ -227,6 +228,7 @@ details[open] summary { margin-bottom: 8px; }
     <select id="exType" aria-label="Exercise">
       <option value="scale">Scale run</option>
       <option value="arp">Arpeggio in position</option>
+      <option value="sweepAll">Sweep study · all chords, 6 → 2 strings</option>
       <option value="sweep6">Sweep arpeggio · 6 strings</option>
       <option value="sweep5">Sweep arpeggio · 5 strings</option>
       <option value="sweep4">Sweep arpeggio · 4 strings</option>
@@ -749,7 +751,14 @@ function degArp(d, kind = S.arpKind) {
   const roman = n === 7 ? (minorish ? ROMAN[d].toLowerCase() : ROMAN[d]) + (roles[2] === 'b5' ? '°' : roles[2] === '#5' ? '+' : '') : deg(st[d]);
   return { key: 't' + d, pcs, roles, name, d, ivs, r: st[d], roman };
 }
+// estudo completo: cada acorde escolhido em 6 cordas (do Mi grave), depois 5, 4, 3 e 2 (da corda Si), sempre até o mi agudo
+const defDegree = () => S.exType === 'sweepAll' ? -1 : -2;
 function arpChords() {
+  const base = arpBase();
+  if (S.exType !== 'sweepAll') return base;
+  return [6, 5, 4, 3, 2].flatMap(N => base.map(c => ({ ...c, key: `${c.key}@${N}`, N, strings: Array.from({ length: N }, (_, i) => 6 - N + i) })));
+}
+function arpBase() {
   const sc = S.scale;
   if (S.degree === -2) return [{ key: 'm', pcs: modalPcs(), roles: sc.arp.ivs.map(iv => deg(iv)), name: modalName() }];
   if (S.degree === -3) return bgChords().map((c, i) => ({ key: 'c' + i, ...chordInfo(c) }));
@@ -775,9 +784,41 @@ function sweepTones(pcs, tag, strings) {
   for (let f = 0; f <= FRETS; f++) { const m = TUNING[first] + f; if (tones.has(mod12(m))) starts.push({ s: first, f, m }); }
   const dist = f => f < S.pos ? S.pos - f : f > S.pos + 5 ? f - S.pos - 5 : 0;
   starts.sort((x, y) => dist(x.f) - dist(y.f) || (mod12(y.m) === rootPc) - (mod12(x.m) === rootPc) || x.f - y.f);
-  let best = [];
-  for (const st of starts) { const up = sweepFrom(st, tones, strings); if (new Set(up.map(x => x.s)).size === strings.length) { best = up; break; } if (up.length > best.length) best = up; }
+  let best = [], whole = null;
+  const allStr = l => new Set(l.map(x => x.s)).size === strings.length, allPcs = l => new Set(l.map(x => mod12(x.m))).size === tones.size;
+  // primeiro um desenho perto da posição com todas as notas do acorde (em 2 cordas, a 1ª forma às vezes deixa uma de fora)
+  for (const st of starts) { if (dist(st.f) > 2) continue; const up = sweepFrom(st, tones, strings); if (allStr(up) && allPcs(up) && up.every(x => x.f >= S.pos - 2 && x.f <= S.pos + 7)) { whole = up; break; } }
+  whole = whole || compactSweep(pcs, strings);
+  if (whole) best = whole;
+  else for (const st of starts) { const up = sweepFrom(st, tones, strings); if (allStr(up)) { best = up; break; } if (up.length > best.length) best = up; }
   return best.concat(best.slice(0, -1).reverse().slice(0, -1)).map(x => ({ ...x, d: tag }));
+}
+// quando uma nota por corda não fecha o acorde: até 2 notas nas cordas de baixo e 3 na de cima, sempre subindo,
+// numa mão só (até 5 casas) e perto da posição. Escolhe o desenho com menos notas, mais dentro da posição, da fundamental.
+function compactSweep(pcs, strings) {
+  const tones = new Set(pcs), lo = S.pos <= 2 ? 0 : S.pos - 2, hi = Math.min(FRETS, S.pos + 7), top = strings[strings.length - 1]; // no começo do braço vale corda solta
+  const out = f => f < S.pos ? S.pos - f : f > S.pos + 5 ? f - S.pos - 5 : 0;
+  const score = l => [l.length, l.reduce((t, x) => t + out(x.f), 0), mod12(l[0].m) === pcs[0] ? 0 : 1, l[0].f];
+  const better = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
+  let best = null, bestS = null;
+  const walk = (si, onStr, list) => {
+    const s = strings[si], last = list[list.length - 1];
+    if (si === strings.length - 1 && onStr > 0 && new Set(list.map(x => mod12(x.m))).size === tones.size) {
+      const sc = score(list); if (!best || better(sc, bestS)) { best = list; bestS = sc; }
+    }
+    if (list.length >= pcs.length + strings.length) return;
+    if (onStr > 0 && si < strings.length - 1) walk(si + 1, 0, list);
+    if (onStr >= (s === top ? 3 : 2)) return;
+    for (let f = lo; f <= hi; f++) {
+      const m = TUNING[s] + f;
+      if (!tones.has(mod12(m)) || (last && m <= last.m)) continue;
+      const fr = list.map(x => x.f).concat(f).filter(x => x > 0); // corda solta não usa dedo
+      if (fr.length && Math.max(...fr) - Math.min(...fr) > 4) continue;
+      walk(si, onStr + 1, list.concat({ s, f, m }));
+    }
+  };
+  walk(0, 0, []);
+  return best;
 }
 function sweepFrom(start, tones, strings) {
   const isTone = m => tones.has(mod12(m));
@@ -850,7 +891,7 @@ function buildSeq() {
   if (S.exType === 'scale') seq = grouped(scaleNotes(), S.pattern);
   else {
     const strings = sweepStrings();
-    seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : S.exType === 'tap' ? tapTones(ch.pcs, ch.key) : S.exType === 'tapx' ? tapSkip(ch.pcs, ch.key) : sweepTones(ch.pcs, ch.key, strings));
+    seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : S.exType === 'tap' ? tapTones(ch.pcs, ch.key) : S.exType === 'tapx' ? tapSkip(ch.pcs, ch.key) : sweepTones(ch.pcs, ch.key, ch.strings || strings));
   }
   seqIdx = 0; activeIdx = -1; padTag = null;
   drawFret();
@@ -954,13 +995,17 @@ function drawTab(arpOn) {
   const el = $('tab'); if (!el) return;
   const fing = {}; if (arpOn) arpChords().forEach(c => { fing[c.key] = fingering(seq.filter(n => n.d === c.key)); });
   const names = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.name])) : {};
+  const blockN = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.N])) : {}; // estudo completo: título a cada número de cordas
+  let prevN;
   const cell = (n, s) => `<span>${n && n.s === s ? `<em>${n.f}</em>` : ''}</span>`;
   const STR = [5, 4, 3, 2, 1, 0];
   // colunas da tablatura inteira; depois quebra em linhas que cabem na largura (sem rolagem), de preferência na troca de acorde
   const cols = []; let prevD;
   seq.forEach((n, i) => {
     const head = arpOn && n.d !== prevD ? names[n.d] : '';
-    if (head && i > 0) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
+    const N = blockN[n.d], newBlock = N && N !== prevN; prevN = N;
+    if (newBlock) cols.push({ sec: `${N} strings` });
+    else if (head && i > 0) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
     prevD = n.d;
     const f = arpOn ? (fing[n.d] ? fing[n.d](n.s, n.f) : undefined) : n.fg;
     cols.push({ html: `<div class="tcol${S.exOn && i === activeIdx ? ' playing' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
@@ -969,6 +1014,7 @@ function drawTab(arpOn) {
   const per = Math.max(8, Math.floor(((el.clientWidth || 1100) - 44) / 22));
   const rows = []; let row = [];
   cols.forEach((c, i) => {
+    if (c.sec) { if (row.length) rows.push(row); row = []; rows.push(c); return; }
     if (row.length >= per) { // se houver uma divisória de acorde nas últimas colunas, quebra nela
       const k = row.map(x => x.bar).lastIndexOf(true);
       if (k > per * 0.6) { rows.push(row.slice(0, k)); row = row.slice(k + 1); } else { rows.push(row); row = []; }
@@ -976,7 +1022,7 @@ function drawTab(arpOn) {
     if (!(c.bar && row.length === 0)) row.push(c);
   });
   if (row.length) rows.push(row);
-  el.innerHTML = rows.map(r => `<div class="trow">${lab}${r.map(c => c.html).join('')}</div>`).join('');
+  el.innerHTML = rows.map(r => r.sec ? `<div class="tsec">${r.sec}</div>` : `<div class="trow">${lab}${r.map(c => c.html).join('')}</div>`).join('');
 }
 addEventListener('resize', () => drawTab(S.exType !== 'scale'));
 const FB = { x0: 46, x1: 1186, y0: 18, y1: 168 };
@@ -1156,12 +1202,12 @@ function drawTheory() {
     `<option value="-3">Follow the background · ${bgNames}</option>` +
     `<option value="-1">All ${n} degrees in a row · ${kind}</option>` +
     Array.from({ length: n }, (_, d) => { const a = degArp(d), has = a.pcs.includes(colorPc); return `<option value="${d}">${has ? '★ ' : ''}${degName(d)} · ${a.name}${has ? ` (has ${deg(sc.color)})` : ''}</option>`; }).join('');
-  if (S.degree >= n) S.degree = -2;
+  if (S.degree >= n) S.degree = defDegree();
   $('degree').value = String(S.degree);
   document.querySelectorAll('.modemap button').forEach(b => b.onclick = () => { // troca para o modo irmão (mesmas notas)
     const k = +b.dataset.k, parent = mod12(S.key - MAJOR[S.scale.mode]);
     S.key = mod12(parent + MAJOR[k]); $('key').value = S.key;
-    const idx = SCALES.findIndex(x => x.mode === k); S.scale = SCALES[idx]; $('scale').value = idx; S.degree = -2; refreshMusic();
+    const idx = SCALES.findIndex(x => x.mode === k); S.scale = SCALES[idx]; $('scale').value = idx; S.degree = defDegree(); refreshMusic();
     audio(); tone(48 + S.key, ctx.currentTime + 0.01, 0.4, 2.5);
   });
   document.querySelectorAll('.harm tr[data-deg]').forEach(tr => tr.onclick = () => {
@@ -1217,7 +1263,7 @@ $('bpm').oninput = e => setBpm(+e.target.value);
 $('sig').onchange = e => { S.beats = +e.target.value; buildBeats(); };
 $('subdiv').onchange = e => { S.subdiv = +e.target.value; };
 $('key').onchange = e => { S.key = +e.target.value; refreshMusic(); };
-$('scale').onchange = e => { S.scale = SCALES[+e.target.value]; S.degree = -2; S.lesson = null; refreshMusic(); if (!$('paneCourse').hidden) renderCourse(); };
+$('scale').onchange = e => { S.scale = SCALES[+e.target.value]; S.degree = defDegree(); S.lesson = null; refreshMusic(); if (!$('paneCourse').hidden) renderCourse(); };
 $('labels').onchange = e => { S.labels = e.target.value; drawFret(); };
 $('view').onchange = e => { S.view = e.target.value; drawFret(); };
 $('sound').onchange = e => { S.sound = e.target.value; };
@@ -1227,7 +1273,7 @@ $('arpKind').onchange = e => { S.arpKind = e.target.value; drawTheory(); buildSe
 $('bgdeg').onchange = e => { S.bgDeg = +e.target.value; syncExUi(); drawTheory(); drawFret(); if (S.padOn) startPad(); };
 $('sstr').onchange = e => { S.sstr = +e.target.value; buildSeq(); };
 function syncExUi() {
-  const sw = S.exType !== 'scale', sweep = S.exType.startsWith('sweep');
+  const sw = S.exType !== 'scale', sweep = /^sweep\d/.test(S.exType); // o estudo completo já define as cordas
   $('pattern').hidden = sw; $('degree').hidden = !sw; $('fsys').hidden = sw || !big7();
   $('bgdeg').hidden = sw; // no scale run: o acorde que toca por baixo
   $('arpKind').hidden = S.exType.startsWith('tap') || (!sw && S.bgDeg === -3); $('arpKind').value = S.arpKind;
@@ -1244,6 +1290,7 @@ S.fsys = store0('fsys', 'pos7'); $('fsys').value = S.fsys; // a digitação esco
 $('fsys').onchange = e => { S.fsys = e.target.value; store0set('fsys', S.fsys); syncPos(); buildSeq(); };
 $('exType').onchange = e => {
   S.exType = e.target.value; syncExUi();
+  if (S.exType === 'sweepAll') { S.degree = -1; $('degree').value = '-1'; drawTheory(); if (S.padOn) startPad(); }
   if ((S.exType.startsWith('sweep') || S.exType.startsWith('tap')) && S.subdiv === 2) { S.subdiv = 3; $('subdiv').value = '3'; }
   buildSeq();
 };

@@ -417,7 +417,7 @@ const TUNING = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4, corda grave prime
 const FRETS = 17;
 
 const S = { view: 'full', sound: 'nylon', bpm: 60, beats: 4, subdiv: 2, running: false, key: 4, scale: SCALES[0], labels: 'deg', pos: 5,
-  click: true, fsys: 'pos7', arpKind: 'triad', sstr: null, bgDeg: -3, exOn: false, exType: 'scale', pattern: 1, degree: -2, padOn: false, builder: false, lesson: null };
+  click: true, fsys: 'pos7', arpKind: 'triad', sstr: null, bgDeg: -4, exOn: false, exType: 'scale', pattern: 1, degree: -2, padOn: false, builder: false, lesson: null };
 const $ = id => document.getElementById(id);
 const mod12 = n => ((n % 12) + 12) % 12;
 const deg = (iv, sc = S.scale) => (sc.names && sc.names[iv]) || DEG[iv];
@@ -565,10 +565,11 @@ function degChord(d) { // tríade do grau d da escala
 }
 // a base toca a progressão da lição; sem lição, a da escala; sem nenhuma, as tríades do vamp
 const followDegrees = () => S.exType === 'scale' ? S.bgDeg !== -3 : S.degree !== -2 && S.degree !== -3;
-const degreeList = sel => (sel === -1 ? harmSteps().map((_, d) => d) : [sel]).map(d => degArp(d));
+// -4: a base toca o acorde do grau em que a posição começa
+const degreeList = sel => sel === -4 ? [degArp(posDegree(), 'modal')] : (sel === -1 ? harmSteps().map((_, d) => d) : [sel]).map(d => degArp(d));
 function bgChords() {
   if (followDegrees()) {
-    const list = S.exType === 'scale' ? degreeList(S.bgDeg) : arpChords(), bars = S.exType === 'scale' && S.bgDeg >= 0 ? 2 : 1;
+    const list = S.exType === 'scale' ? degreeList(S.bgDeg) : arpChords(), bars = S.exType === 'scale' && (S.bgDeg >= 0 || S.bgDeg === -4) ? 2 : 1;
     return list.map(a => ({ r: a.r, q: '', ivs: a.ivs, roles: a.roles, name: a.name, roman: a.roman, bars, tag: a.key }));
   }
   return baseBgChords();
@@ -766,9 +767,30 @@ const harmSteps = () => S.scale.steps.filter(iv => iv !== S.scale.passing); // a
 // acorde do modo de cada grau: a tétrade mais a nota característica do modo, quando ela ainda não está no acorde.
 // Em C maior: Cmaj7, Dm7(6), Em7(b9), Fmaj7(#11), G7, Am7(b6), Bm7b5. A referência é maior, menor natural ou mixolídio;
 // se o próprio acorde já foge da referência (G7 no maior, m7b5), ele já mostra o modo e não ganha nota.
+// escalas sem 7 graus: o acorde que cada rotação da escala forma (pentatônicas, tons inteiros, diminuta)
+const ROTATION = {
+  '0,3,5,7,10': { suf: 'm7(11)', ivs: [0, 3, 7, 10, 17], roles: ['R', 'b3', '5', 'b7', '11'] },
+  '0,2,4,7,9': { suf: '6/9', ivs: [0, 4, 7, 9, 14], roles: ['R', '3', '5', '6', '9'] },
+  '0,2,5,7,10': { suf: '9sus4', ivs: [0, 5, 7, 10, 14], roles: ['R', '4', '5', 'b7', '9'] },
+  '0,3,5,8,10': { suf: 'm7(b6)', ivs: [0, 3, 8, 10], roles: ['R', 'b3', 'b6', 'b7'] },
+  '0,2,5,7,9': { suf: '6/9sus4', ivs: [0, 5, 7, 9, 14], roles: ['R', '4', '5', '6', '9'] },
+  '0,2,4,6,8,10': { suf: '7#5', ivs: [0, 4, 8, 10], roles: ['R', '3', '#5', 'b7'] },
+  '0,1,3,4,6,7,9,10': { suf: '7(b9)', ivs: [0, 4, 7, 10, 13], roles: ['R', '3', '5', 'b7', 'b9'] },
+  '0,2,3,5,6,8,9,11': { suf: 'dim7', ivs: [0, 3, 6, 9], roles: ['R', 'b3', 'b5', 'bb7'] },
+};
+function posDegree() { // grau em que a posição começa, na corda Mi grave
+  const st = harmSteps(); let f = S.pos;
+  if (S.fsys === 'caged' && big7()) { const r = scaleNotes(); if (r.length) f = r[0].f; }
+  for (let x = f; x < f + 12; x++) { const d = st.indexOf(mod12(TUNING[0] + x - S.key)); if (d >= 0) return d; }
+  return 0;
+}
 function modalDeg(d) {
-  const base = degArp(d, 'seventh'), st = harmSteps();
-  if (st.length !== 7) return base;
+  const st = harmSteps();
+  if (st.length !== 7) {
+    const rot = st.map(x => mod12(x - st[d])).sort((a, b) => a - b).join(','), R = ROTATION[rot], root = mod12(S.key + st[d]);
+    return { key: 't' + d, pcs: R.ivs.map(iv => mod12(root + iv)), roles: R.roles, name: noteAt(root) + R.suf, d, ivs: R.ivs, r: st[d], roman: deg(st[d]) };
+  }
+  const base = degArp(d, 'seventh');
   const c = base.ivs.map(mod12), mode = st.map(x => mod12(x - st[d])), has = x => c.includes(x), dom = has(4) && has(10);
   const ref = dom ? [0, 2, 4, 5, 7, 9, 10] : has(4) ? MAJOR : [0, 2, 3, 5, 7, 8, 10];
   if (c.some(x => !ref.includes(x)) && !dom) return base;
@@ -780,7 +802,7 @@ function modalDeg(d) {
   return { ...base, ivs: [...base.ivs, col + 12], pcs: [...base.pcs, mod12(S.key + st[d] + col)], roles: [...base.roles, lab], name: `${base.name}(${lab})` };
 }
 function degArp(d, kind = S.arpKind) {
-  if (kind === 'modal') return modalDeg(d);
+  if (kind === 'modal' || harmSteps().length !== 7) return modalDeg(d); // sem 7 graus, terças empilhadas não formam acorde com nome
   const st = harmSteps(), n = st.length, size = kind === 'seventh' ? 4 : 3;
   const ivs = [];
   for (let k = 0; k < size; k++) { const i = d + 2 * k; ivs.push(st[i % n] + 12 * Math.floor(i / n) - st[d]); }
@@ -810,7 +832,14 @@ function chooseChord(key) { // mostra o arpejo desse acorde; tocando, o exercíc
   drawFret();
 }
 const inSequence = () => S.exType.startsWith('sweep') && !S.lesson && S.degree === -1;
+// no scale run: o acorde e o modo do grau em que a posição começa (5º grau de C jônio = G7, G mixolídio)
+function posChordText() {
+  if (S.exType !== 'scale') return '';
+  const c = degArp(posDegree(), 'modal'), mode = modeOf(c);
+  return `Degree <b>${c.roman}</b> · Chord <b>${c.name}</b> (${c.roles.join(' ')})${mode ? ` · ${noteAt(mod12(S.key + c.r))} ${mode}` : ''} · `;
+}
 function followPos() { // Position e setas: a casa escolhida é a fundamental do grau, e o arpejo desse grau aparece ali
+  if (S.exType === 'scale' && S.bgDeg === -4) { drawTheory(); if (S.padOn) startPad(); return; } // a base acompanha a posição
   if (!inSequence()) return;
   const d = harmSteps().indexOf(mod12(TUNING[0] + S.pos - S.key)); if (d < 0) return;
   const ch = arpChords(), cur = ch.find(c => c.key === shownArpKey()) || ch[0];
@@ -836,8 +865,8 @@ function sweepAt(ch, strings) { // monta o sweep com a mão na posição do acor
 }
 function arpBase() {
   const sc = S.scale;
-  if (S.degree === -2) return [{ key: 'm', pcs: modalPcs(), roles: sc.arp.ivs.map(iv => deg(iv)), name: modalName() }];
-  if (S.degree === -3) return bgChords().map((c, i) => ({ key: 'c' + i, ...chordInfo(c) }));
+  if (S.degree === -2) return [{ key: 'm', pcs: modalPcs(), roles: sc.arp.ivs.map(iv => deg(iv)), name: modalName(), roman: harmSteps().length === 7 ? 'I' : '1' }];
+  if (S.degree === -3) return bgChords().map((c, i) => ({ key: 'c' + i, ...chordInfo(c), roman: romanOf(c) }));
   const n = harmSteps().length, ds = S.degree === -1 ? Array.from({ length: n }, (_, d) => d) : [S.degree]; // -1: percorre todos os graus (os modos)
   return ds.map(d => degArp(d)); // (não passar o índice do map como tipo de acorde)
 }
@@ -1117,7 +1146,7 @@ function fingering(notes) {
 function drawTab(arpOn) {
   const el = $('tab'); if (!el) return;
   const fing = {}; if (arpOn) arpChords().forEach(c => { fing[c.key] = fingering(seq.filter(n => n.d === c.key)); });
-  const names = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.name])) : {};
+  const names = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.roman ? `${c.roman} · ${c.name}` : c.name])) : {}; // grau e acorde
   const blockN = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.N])) : {}; // estudo completo: um bloco por número de cordas
   const cell =(n, s) => `<span>${n && n.s === s ? `<em>${n.f}</em>` : ''}</span>`;
   const STR = [5, 4, 3, 2, 1, 0];
@@ -1252,7 +1281,7 @@ function drawFret() {
   drawTab(arpOn);
   // nome da escala em destaque acima do braço; no arpejo, o acorde que está soando
   $('scaleTitle').innerHTML = `<b>${keyName(S.key)}</b> ${S.scale.name}`;
-  $('scaleSub').innerHTML = curArp ? `Arpeggio: <b>${curArp.name}</b> (${curArp.roles.join(' ')})${curArp.pos !== undefined ? ` · ${noteAt(mod12(S.key + curArp.r))} ${modeOf(curArp)} position, fret ${curArp.pos}` : ''}` : `${S.scale.steps.map(iv => deg(iv)).join(' ')}`;
+  $('scaleSub').innerHTML = curArp ? `${curArp.roman ? `Degree <b>${curArp.roman}</b> · ` : ''}Arpeggio <b>${curArp.name}</b> (${curArp.roles.join(' ')})${curArp.pos !== undefined ? ` · ${noteAt(mod12(S.key + curArp.r))} ${modeOf(curArp)} position, fret ${curArp.pos}` : ''}` : `${posChordText()}${S.scale.steps.map(iv => deg(iv)).join(' ')}`;
   const hints = { full: '', tonics: 'Only the home notes: find the tonic and the relative tonic anywhere on the neck.',
     box: 'One hand position: everything you can reach without shifting.',
     chord: scaleMode ? `White ring: notes of the background chord ${ref.name} (${ref.roles.join(' ')}). Every note of the scale shape stays lit.` : `Chord tones of ${ref.name}: ${ref.roles.join(' ')}. Dashed notes are chord tones outside the scale.`,
@@ -1301,7 +1330,7 @@ function triadHasColor(d) { return triad(d, 0).map(mod12).includes(mod12(S.key +
 function harmonyTable() {
   const st = harmSteps(), fam = family(), colorPc = mod12(S.key + S.scale.color);
   const rows = st.map((iv, d) => {
-    const t = degArp(d, 'triad'), q = degArp(d, 'seventh'), has = q.pcs.includes(colorPc);
+    const t = degArp(d, 'triad'), q = degArp(d, 'seventh'), has = q.pcs.includes(colorPc); // (sem 7 graus, os dois trazem o acorde da rotação)
     const mode = fam ? fam.names[(fam.i + d) % fam.names.length] : '';
     const cur = S.exType === 'scale' ? S.bgDeg === d : S.degree === d;
     return `<tr data-deg="${d}" class="${cur ? 'cur' : ''}"><td>${q.roman}</td><td>${noteAt(mod12(S.key + iv))}</td><td>${t.name}</td><td>${has ? '★ ' : ''}${q.name}</td>${fam ? `<td>${mode}</td>` : ''}</tr>`;
@@ -1344,7 +1373,7 @@ function drawTheory() {
   const kind = S.arpKind === 'modal' ? 'modal chords' : S.arpKind === 'seventh' ? '7th chords' : 'triads';
   const degName = d => seven ? ROMAN[d] : deg(harmSteps()[d]);
   const baseNames = [...new Set(baseBgChords().map(chordLabel))].join(' → ');
-  $('bgdeg').innerHTML = `<option value="-3">Backing: ${S.lesson && S.lesson.prog ? 'lesson' : 'scale'} chords · ${baseNames}</option>` +
+  $('bgdeg').innerHTML = `<option value="-4">Backing: chord of this position</option><option value="-3">Backing: ${S.lesson && S.lesson.prog ? 'lesson' : 'scale'} chords · ${baseNames}</option>` +
     `<option value="-1">Backing: all ${n} degrees in a row · ${kind}</option>` +
     Array.from({ length: n }, (_, d) => { const a = degArp(d); return `<option value="${d}">Backing: ${a.roman} · ${a.name}</option>`; }).join('');
   if (S.bgDeg >= n) S.bgDeg = -3;
@@ -1414,7 +1443,7 @@ $('bpm').oninput = e => setBpm(+e.target.value);
 $('sig').onchange = e => { S.beats = +e.target.value; buildBeats(); };
 $('subdiv').onchange = e => { S.subdiv = +e.target.value; };
 $('key').onchange = e => { S.key = +e.target.value; refreshMusic(); };
-$('scale').onchange = e => { S.scale = SCALES[+e.target.value]; S.degree = defDegree(); S.lesson = null; refreshMusic(); if (!$('paneCourse').hidden) renderCourse(); };
+$('scale').onchange = e => { S.scale = SCALES[+e.target.value]; S.degree = defDegree(); S.lesson = null; S.bgDeg = -4; refreshMusic(); if (!$('paneCourse').hidden) renderCourse(); };
 $('labels').onchange = e => { S.labels = e.target.value; drawFret(); };
 $('view').onchange = e => { S.view = e.target.value; drawFret(); };
 $('sound').onchange = e => { S.sound = e.target.value; };
@@ -1427,7 +1456,7 @@ function syncExUi() {
   const sw = S.exType !== 'scale', sweep = /^sweep\d/.test(S.exType); // o estudo completo já define as cordas
   $('pattern').hidden = sw; $('degree').hidden = !sw; $('fsys').hidden = sw || !big7();
   $('bgdeg').hidden = sw; // no scale run: o acorde que toca por baixo
-  $('arpKind').hidden = S.exType.startsWith('tap') || (!sw && S.bgDeg === -3); $('arpKind').value = S.arpKind;
+  $('arpKind').hidden = S.exType.startsWith('tap') || (!sw && S.bgDeg <= -3); $('arpKind').value = S.arpKind;
   $('sstr').hidden = !sweep;
   if (sweep) { // a corda inicial vai do Mi grave até a mais aguda em que ainda cabem N cordas
     const N = sweepN(), names = ['low E', 'A', 'D', 'G', 'B'];
@@ -1440,7 +1469,9 @@ const store0set = (k, v) => { try { localStorage.setItem('pr.' + k, JSON.stringi
 S.fsys = store0('fsys', 'pos7'); $('fsys').value = S.fsys; // a digitação escolhida fica guardada neste navegador
 $('fsys').onchange = e => { S.fsys = e.target.value; store0set('fsys', S.fsys); syncPos(); buildSeq(); };
 $('exType').onchange = e => {
-  S.exType = e.target.value; clearView(); syncExUi();
+  S.exType = e.target.value; clearView();
+  if (S.exType === 'scale' && S.lesson) { S.lesson = null; courseSel = null; pickItem = null; store.set('lesson', null); S.bgDeg = -4; drawTheory(); if (!$('paneCourse').hidden) renderCourse(); if (S.padOn) startPad(); } // escala escolhida no menu sai da lição
+  syncExUi();
   if (S.exType.startsWith('sweep')) { // sweep escolhido no menu sai da lição: tablatura, braço e base seguem os acordes do tom
     S.lesson = null; courseSel = null; pickItem = null; store.set('lesson', null);
     S.degree = -1; S.arpKind = 'modal'; $('arpKind').value = 'modal'; drawTheory(); $('degree').value = '-1';

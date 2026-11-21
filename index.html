@@ -881,11 +881,14 @@ function drawFret() {
   const ref = S.padOn && padIdx !== null ? chordInfo(bg[padIdx % bg.length]) : curArp || chordInfo(bg[0]);
   // notas do acorde fora da escala também aparecem (tracejadas) no arpejo e na visão do acorde
   const extra = new Set([...(curArp ? curArp.pcs : []), ...(view === 'chord' ? ref.pcs : [])]);
-  const inBox = f => f >= S.pos && f <= S.pos + 5;
+  // na escala, a caixa tracejada contorna exatamente o desenho tocado
+  const scaleMode = !arpOn && inRun.size > 0, runFr = scaleMode ? seq.map(n => n.f) : [];
+  const boxLo = scaleMode ? Math.min(...runFr) : S.pos, boxHi = scaleMode ? Math.max(...runFr) : S.pos + 5;
+  const inBox = f => f >= boxLo && f <= boxHi;
   const parentPc = S.scale.mode !== undefined ? mod12(S.key - MAJOR[S.scale.mode]) : null;
   const ACC = '#e0b04a', REL = '#9c7a33', VIO = '#b18cf0', FONT = 'system-ui, Segoe UI, sans-serif';
   let o = `<rect x="${FB.x0}" y="${FB.y0 - 9}" width="${FB.x1 - FB.x0}" height="${FB.y1 - FB.y0 + 18}" fill="#1a1c20" stroke="#343941"/>`;
-  const wl = S.pos === 0 ? FB.x0 - 34 : FB.x0 + (S.pos - 1) * FB.fw, wr = FB.x0 + Math.min(FRETS, S.pos + 5) * FB.fw;
+  const wl = boxLo === 0 ? FB.x0 - 34 : FB.x0 + (boxLo - 1) * FB.fw, wr = FB.x0 + Math.min(FRETS, boxHi) * FB.fw;
   o += `<rect x="${wl}" y="${FB.y0 - 9}" width="${wr - wl}" height="${FB.y1 - FB.y0 + 18}" fill="rgba(255,255,255,.04)" stroke="#5a616b" stroke-dasharray="3 4"/>`;
   for (let f = 0; f <= FRETS; f++) o += `<line x1="${FB.x0 + f * FB.fw}" y1="${FB.y0 - 9}" x2="${FB.x0 + f * FB.fw}" y2="${FB.y1 + 9}" stroke="${f === 0 ? '#c9ccd1' : '#3d434b'}" stroke-width="${f === 0 ? 5 : 1.5}"/>`;
   const dot = (x, y) => `<circle cx="${x}" cy="${y}" r="4" fill="#3d434b"/>`;
@@ -914,13 +917,17 @@ function drawFret() {
       let label = S.labels === 'deg' ? (outside ? DEG[iv] : deg(iv)) : owner ? spell(pc, owner.roles[owner.pcs.indexOf(pc)]) : noteAt(pc);
       let hide = false, altered = false;
       const run = inRun.has(s + ':' + f);
-      if (view === 'tonics') hide = !isRoot && !isRel && !act && !arp && !run; // as notas do arpejo nunca somem
+      // na escala: as notas do desenho ficam sempre acesas com o grau delas; as demais, só de fundo e bem apagadas
+      const keep = scaleMode && run, chordTone = keep && view === 'chord' && ref.pcs.includes(pc);
+      if (keep) { /* nenhuma visão apaga nem renomeia uma nota do desenho */ }
+      else if (scaleMode && view === 'box') hide = !act;
+      else if (view === 'tonics') hide = !isRoot && !isRel && !act && !arp && !run; // as notas do arpejo nunca somem
       else if (view === 'box') hide = !inBox(f) && !act && !arp && !run; // a caixa mostra só a posição
       else if (view === 'chord') { const ci = ref.pcs.indexOf(mod12(m)); if (ci < 0) dim = !act; else label = ref.roles[ci]; }
       else if (view === 'parallel') { altered = !outside && !MAJOR.includes(iv); dim = dim || (!altered && !isRoot); }
       else if (view === 'modes' && parentPc !== null) { const k = MAJOR.indexOf(mod12(m - parentPc)); if (k >= 0) label = MODE_SHORT[k]; }
       if (hide) continue;
-      const faded = !inBox(f) && !act && !arp && !run; // fora da posição escolhida: baixa opacidade em qualquer visão
+      const faded = scaleMode ? !run && !act : !inBox(f) && !act && !arp && !run; // fora do desenho: baixa opacidade
       const x = fx(f), y = sy(s), r = act ? 14 : 11.5;
       let shape;
       if (isRoot) shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="${ACC}"/>`;
@@ -929,7 +936,7 @@ function drawFret() {
       else if (altered) shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="rgba(177,140,240,.4)" stroke="${VIO}" stroke-width="2"/>`;
       else shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="${arp ? 'rgba(224,176,74,.25)' : '#1d2024'}" stroke="${isColor ? VIO : ACC}" stroke-width="${arp ? 2.4 : 1.6}"/>`;
       const txt = isRoot || isRel ? '#1a1406' : '#e8e9eb';
-      o += `<g opacity="${faded ? 0.16 : dim ? 0.32 : 1}">${act ? `<circle cx="${x}" cy="${y}" r="${r + 4}" fill="none" stroke="#ffffff" stroke-width="2"/>` : ''}${shape}
+      o += `<g opacity="${faded ? (scaleMode ? 0.12 : 0.16) : dim ? 0.32 : 1}">${chordTone ? `<circle cx="${x}" cy="${y}" r="${r + 4.5}" fill="none" stroke="#e8e9eb" stroke-width="1.4"/>` : ''}${act ? `<circle cx="${x}" cy="${y}" r="${r + 4}" fill="none" stroke="#ffffff" stroke-width="2"/>` : ''}${shape}
         <text x="${x}" y="${y + (label.length > 2 ? 3.4 : 4.2)}" font-size="${label.length > 2 ? 8.5 : 11}" font-weight="700" text-anchor="middle" fill="${txt}" font-family="${FONT}">${label}</text>${arp ? fingerBadge(x, y, finger(s, f), FONT) : run && S.view !== 'tonics' ? fingerBadge(x, y, runFinger(s, f), FONT) : ''}</g>`;
     }
   });
@@ -948,7 +955,7 @@ function drawFret() {
   $('scaleSub').innerHTML = curArp ? `Arpeggio: <b>${curArp.name}</b> (${curArp.roles.join(' ')})` : `${S.scale.steps.map(iv => deg(iv)).join(' ')}`;
   const hints = { full: '', tonics: 'Only the home notes: find the tonic and the relative tonic anywhere on the neck.',
     box: 'One hand position: everything you can reach without shifting.',
-    chord: `Chord tones of ${ref.name}: ${ref.roles.join(' ')}. Dashed notes are chord tones outside the scale.`,
+    chord: scaleMode ? `White ring: notes of the background chord ${ref.name} (${ref.roles.join(' ')}). Every note of the scale shape stays lit.` : `Chord tones of ${ref.name}: ${ref.roles.join(' ')}. Dashed notes are chord tones outside the scale.`,
     parallel: 'Violet: notes this scale changes. Dashed: where the major scale note would be.',
     modes: parentPc === null ? 'Mode names work on the seven major modes.' : 'Each note is the start of a different mode of the same parent key.' };
   $('viewHint').textContent = arpOn ? `Fingers: 1 index · 2 middle · 3 ring · 4 pinky · 0 open string · T right-hand tap. The line is the arpeggio shape, starting at the dashed ring. ${hints[view]}` : hints[view];

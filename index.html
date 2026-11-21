@@ -98,6 +98,17 @@ details[open] summary { margin-bottom: 8px; }
 .legend i.c { border: 1.5px solid var(--violet); }
 .legend span.keys { margin-left: auto; }
 
+.tab { display: flex; overflow-x: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px; padding: 4px 0 8px; }
+.tcol { display: flex; flex-direction: column; align-items: stretch; min-width: 24px; flex: none; }
+.tcol b, .tcol i { height: 16px; line-height: 16px; font-size: 11px; text-align: center; font-style: normal; color: var(--muted); white-space: nowrap; overflow: visible; }
+.tcol b { color: var(--accent); text-align: left; font-family: var(--sans); font-weight: 600; }
+.tcol span { height: 16px; line-height: 16px; text-align: center; background: linear-gradient(#5a616b, #5a616b) center / 100% 1px no-repeat; }
+.tcol span em { font-style: normal; background: var(--panel); padding: 0 2px; color: var(--text); font-weight: 600; }
+.tcol.lab span { background: none; color: var(--muted); padding-right: 6px; text-align: right; }
+.tcol.bar span { min-width: 2px; background: #5a616b; }
+.tcol.now span em { background: var(--accent); color: #1a1406; border-radius: 3px; }
+.tcol.now i { color: var(--accent); }
+#tabBox summary { margin: 2px 0 4px; }
 .legend i.o { border: 1.5px dashed #c9ccd1; }
 .bgnow small { color: var(--muted); font-size: 12px; }
 
@@ -214,6 +225,7 @@ details[open] summary { margin-bottom: 8px; }
     <select id="sound" aria-label="Sound"><option value="nylon">Sound: classical nylon</option><option value="glass">Sound: glass</option><option value="felt">Sound: felt keys</option><option value="harp">Sound: soft harp</option></select>
     <span class="now" id="now"></span>
   </div>
+  <details id="tabBox" open><summary>Tablature</summary><div id="tab" class="tab"></div></details>
   <div class="fretscroll"><svg id="fret" viewBox="0 0 1200 196" role="img" aria-label="Fretboard"></svg></div>
   <div class="legend">
     <span><i class="r"></i>Tonic</span>
@@ -562,16 +574,15 @@ function sweepTones(pcs, tag, strings) {
   const tones = new Set(pcs), rootPc = pcs[0];
   const isTone = m => tones.has(mod12(m));
   const first = strings[0], lo = Math.max(0, S.pos - 1), hi = Math.min(FRETS, S.pos + 6);
-  let start = null;
-  for (let f = lo; f <= hi && !start; f++) { const m = TUNING[first] + f; if (mod12(m) === rootPc) start = { s: first, f, m }; }
-  for (let f = lo; f <= hi && !start; f++) { const m = TUNING[first] + f; if (isTone(m)) start = { s: first, f, m }; }
+  const find = (a, b, ok) => { for (let f = Math.max(0, a); f <= Math.min(FRETS, b); f++) { const m = TUNING[first] + f; if (ok(m)) return { s: first, f, m }; } return null; };
+  const isRoot = m => mod12(m) === rootPc, box = [S.pos, S.pos + 5];
+  let start = find(...box, isRoot) || find(...box, isTone) || find(lo, hi, isRoot) || find(lo, hi, isTone);
   if (!start) return [];
   const up = [start]; let prev = start;
   for (const s of strings.slice(1)) {
-    let best = null;
-    for (let f = Math.max(0, prev.f - 4); f <= Math.min(FRETS, prev.f + 4); f++) {
-      const m = TUNING[s] + f; if (m > prev.m && isTone(m) && (!best || m < best.m)) best = { s, f, m };
-    }
+    // primeiro dentro da posição escolhida (o desenho não escapa da caixa); se não houver, até 4 casas de distância
+    const pick = (a, b) => { let best = null; for (let f = Math.max(0, a); f <= Math.min(FRETS, b); f++) { const m = TUNING[s] + f; if (m > prev.m && isTone(m) && (!best || m < best.m)) best = { s, f, m }; } return best; };
+    const best = pick(Math.max(lo, prev.f - 4), Math.min(hi, prev.f + 4)) || pick(prev.f - 4, prev.f + 4);
     if (!best) break;
     up.push(best); prev = best;
   }
@@ -653,6 +664,49 @@ function showNow(m) {
 // ---------------------------------------------------------------------------------------------
 // Braço da guitarra: tônica em ouro maciço, tônica relativa em ouro com anel duplo, demais notas com borda dourada
 // ---------------------------------------------------------------------------------------------
+const fingerBadge = (x, y, n, font) => n === undefined ? '' : `<circle cx="${x + 11}" cy="${y - 11}" r="7.5" fill="#e8e9eb" stroke="#15171a" stroke-width="1.5"/>
+  <text x="${x + 11}" y="${y - 7.6}" font-size="10" font-weight="800" text-anchor="middle" fill="#15171a" font-family="${font}">${n}</text>`;
+// digitação sugerida: segue o desenho na ordem em que as notas soam; enquanto cabe em 5 casas a mão fica parada
+// (um dedo por casa, mínimo esticando na 5ª), quando não cabe a mão muda de posição. Corda solta = 0.
+function fingering(notes) {
+  const peak = notes.reduce((k, n, i) => n.m > notes[k].m ? i : k, 0), path = notes.slice(0, peak + 1), map = new Map();
+  let group = [];
+  const flush = () => {
+    const fr = group.filter(n => n.f > 0).map(n => n.f);
+    if (fr.length) {
+      const lo = Math.min(...fr), span = Math.max(...fr) - lo;
+      group.forEach(n => { if (n.f > 0) { const d = n.f - lo; map.set(n.s + ':' + n.f, span <= 3 ? d + 1 : [1, 2, 3, 3, 4][d]); } });
+    }
+    group.forEach(n => { if (n.f === 0) map.set(n.s + ':0', 0); });
+    group = [];
+  };
+  path.forEach(n => {
+    const fr = group.filter(x => x.f > 0).map(x => x.f).concat(n.f > 0 ? [n.f] : []);
+    if (fr.length && Math.max(...fr) - Math.min(...fr) > 4) flush();
+    group.push(n);
+  });
+  flush();
+  return (s, f) => map.get(s + ':' + f);
+}
+// tablatura do exercício: corda aguda em cima; no arpejo, nome do acorde em cima e dedo embaixo; a coluna tocando acende
+function drawTab(arpOn) {
+  const el = $('tab'); if (!el) return;
+  const fing = {}; if (arpOn) arpChords().forEach(c => { fing[c.key] = fingering(seq.filter(n => n.d === c.key)); });
+  const names = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.name])) : {};
+  const cell = (n, s) => `<span>${n && n.s === s ? `<em>${n.f}</em>` : ''}</span>`;
+  const STR = [5, 4, 3, 2, 1, 0];
+  let h = `<div class="tcol lab"><b></b>${['e', 'B', 'G', 'D', 'A', 'E'].map(x => `<span>${x}</span>`).join('')}<i>${arpOn ? 'finger' : ''}</i></div>`;
+  let prevD;
+  seq.forEach((n, i) => {
+    const head = arpOn && n.d !== prevD ? names[n.d] : '';
+    if (head && i > 0) h += `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>`;
+    prevD = n.d;
+    const f = arpOn && fing[n.d] ? fing[n.d](n.s, n.f) : undefined;
+    h += `<div class="tcol${S.exOn && active === n ? ' now' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>`;
+  });
+  el.innerHTML = h;
+  const now = el.querySelector('.now'); if (now && now.scrollIntoView) { const L = now.offsetLeft - el.offsetLeft; if (L < el.scrollLeft || L > el.scrollLeft + el.clientWidth - 40) el.scrollLeft = L - 60; }
+}
 const FB = { x0: 46, x1: 1186, y0: 18, y1: 168 };
 FB.fw = (FB.x1 - FB.x0) / FRETS; FB.sh = (FB.y1 - FB.y0) / 5;
 const fx = f => f === 0 ? FB.x0 - 22 : FB.x0 + (f - 0.5) * FB.fw;
@@ -679,6 +733,14 @@ function drawFret() {
   [3, 5, 7, 9, 15, 17].forEach(f => o += dot(FB.x0 + (f - 0.5) * FB.fw, (FB.y0 + FB.y1) / 2));
   [-1, 1].forEach(d => o += dot(FB.x0 + 11.5 * FB.fw, (FB.y0 + FB.y1) / 2 + d * FB.sh));
   for (let s = 0; s < 6; s++) o += `<line x1="${FB.x0 - 34}" y1="${sy(s)}" x2="${FB.x1}" y2="${sy(s)}" stroke="#8a9099" stroke-width="${2.2 - s * 0.25}"/>`;
+  const curNotes = arpOn ? seq.filter(n => n.d === curKey) : [];
+  const finger = fingering(curNotes);
+  if (curNotes.length > 1) {
+    const peak = curNotes.reduce((k, n, i) => n.m > curNotes[k].m ? i : k, 0), path = curNotes.slice(0, peak + 1);
+    o += `<polyline points="${path.map(n => fx(n.f) + ',' + sy(n.s)).join(' ')}" fill="none" stroke="${'#e0b04a'}" stroke-width="3" stroke-opacity=".55" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const a = path[0];
+    o += `<circle cx="${fx(a.f)}" cy="${sy(a.s)}" r="17" fill="none" stroke="#e0b04a" stroke-width="1.2" stroke-dasharray="2 3"/>`;
+  }
   for (let f = 1; f <= FRETS; f++) o += `<text x="${FB.x0 + (f - 0.5) * FB.fw}" y="190" fill="#9aa0a8" font-size="12" text-anchor="middle" font-family="${FONT}">${f}</text>`;
   TUNING.forEach((open, s) => {
     for (let f = 0; f <= FRETS; f++) {
@@ -706,7 +768,7 @@ function drawFret() {
       else shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="${arp ? 'rgba(224,176,74,.25)' : '#1d2024'}" stroke="${isColor ? VIO : ACC}" stroke-width="${arp ? 2.4 : 1.6}"/>`;
       const txt = isRoot || isRel ? '#1a1406' : '#e8e9eb';
       o += `<g opacity="${faded ? 0.16 : dim ? 0.32 : 1}">${act ? `<circle cx="${x}" cy="${y}" r="${r + 4}" fill="none" stroke="#ffffff" stroke-width="2"/>` : ''}${shape}
-        <text x="${x}" y="${y + (label.length > 2 ? 3.4 : 4.2)}" font-size="${label.length > 2 ? 8.5 : 11}" font-weight="700" text-anchor="middle" fill="${txt}" font-family="${FONT}">${label}</text></g>`;
+        <text x="${x}" y="${y + (label.length > 2 ? 3.4 : 4.2)}" font-size="${label.length > 2 ? 8.5 : 11}" font-weight="700" text-anchor="middle" fill="${txt}" font-family="${FONT}">${label}</text>${arp ? fingerBadge(x, y, finger(s, f), FONT) : ''}</g>`;
     }
   });
   if (view === 'parallel') TUNING.forEach((open, s) => {
@@ -718,6 +780,7 @@ function drawFret() {
     }
   });
   $('fret').innerHTML = o;
+  drawTab(arpOn);
   // nome da escala em destaque acima do braço; no arpejo, o acorde que está soando
   $('scaleTitle').innerHTML = `<b>${keyName(S.key)}</b> ${S.scale.name}`;
   $('scaleSub').innerHTML = curArp ? `Arpeggio: <b>${curArp.name}</b> (${curArp.roles.join(' ')})` : `${S.scale.steps.map(iv => deg(iv)).join(' ')}`;
@@ -726,7 +789,7 @@ function drawFret() {
     chord: `Chord tones of ${ref.name}: ${ref.roles.join(' ')}. Dashed notes are chord tones outside the scale.`,
     parallel: 'Violet: notes this scale changes. Dashed: where the major scale note would be.',
     modes: parentPc === null ? 'Mode names work on the seven major modes.' : 'Each note is the start of a different mode of the same parent key.' };
-  $('viewHint').textContent = hints[view];
+  $('viewHint').textContent = arpOn ? `Fingers: 1 index · 2 middle · 3 ring · 4 pinky · 0 open string. The line is the arpeggio shape, starting at the dashed ring. ${hints[view]}` : hints[view];
 }
 $('fret').addEventListener('pointerdown', e => {
   const svg = $('fret'), pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;

@@ -774,14 +774,16 @@ function degArp(d, kind = S.arpKind) {
   return { key: 't' + d, pcs, roles, name, d, ivs, r: st[d], roman };
 }
 // estudo completo: cada acorde escolhido em 6 cordas (do Mi grave), depois 5, 4, 3 e 2 (da corda Si), sempre até o mi agudo
-const defDegree = () => S.exType === 'sweepAll' ? -1 : -2;
+const defDegree = () => S.exType.startsWith('sweep') ? -1 : -2;
 function arpChords() {
   const base = arpBase();
-  if (S.exType !== 'sweepAll') return base;
   // sequência dentro do tom: cada acorde na posição do seu modo, com a fundamental na corda Mi grave (C jônio, D dórico
   // duas casas à direita, E frígio...). O braço vai até a casa 17: passando da 13, a posição volta uma oitava
   const tonicFret = mod12(S.key - TUNING[0]);
   const seqPos = c => { if (c.r === undefined) return undefined; let f = tonicFret + c.r; while (f > 13) f -= 12; return f; };
+  // sweep de N cordas escolhido no menu (fora de uma lição): a mesma sequência do tom, só nessas cordas
+  if (/^sweep\d/.test(S.exType) && !S.lesson && S.degree === -1) return base.map(c => ({ ...c, pos: seqPos(c) }));
+  if (S.exType !== 'sweepAll') return base;
   return [6, 5, 4, 3, 2].flatMap(N => base.map(c => ({ ...c, key: `${c.key}@${N}`, N, pos: seqPos(c), strings: Array.from({ length: N }, (_, i) => 6 - N + i) })));
 }
 const modeOf = c => { const fam = family(); return fam && c.d !== undefined ? fam.names[(fam.i + c.d) % fam.names.length] : ''; };
@@ -965,7 +967,7 @@ function buildSeq() {
   if (S.exType === 'scale') seq = grouped(scaleNotes(), S.pattern);
   else {
     const strings = sweepStrings();
-    seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : S.exType === 'tap' ? tapTones(ch.pcs, ch.key) : S.exType === 'tapx' ? tapSkip(ch.pcs, ch.key) : S.exType === 'sweepAll' ? sweepAt(ch, strings) : sweepTones(ch.pcs, ch.key, strings));
+    seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : S.exType === 'tap' ? tapTones(ch.pcs, ch.key) : S.exType === 'tapx' ? tapSkip(ch.pcs, ch.key) : ch.pos !== undefined ? sweepAt(ch, strings) : sweepTones(ch.pcs, ch.key, strings));
   }
   seqIdx = 0; activeIdx = -1; padTag = null;
   drawFret();
@@ -1376,7 +1378,12 @@ S.fsys = store0('fsys', 'pos7'); $('fsys').value = S.fsys; // a digitação esco
 $('fsys').onchange = e => { S.fsys = e.target.value; store0set('fsys', S.fsys); syncPos(); buildSeq(); };
 $('exType').onchange = e => {
   S.exType = e.target.value; syncExUi();
-  if (S.exType === 'sweepAll') { S.degree = -1; S.arpKind = 'modal'; $('arpKind').value = 'modal'; drawTheory(); $('degree').value = '-1'; if (S.padOn) startPad(); }
+  if (S.exType.startsWith('sweep')) { // sweep escolhido no menu sai da lição: tablatura, braço e base seguem os acordes do tom
+    S.lesson = null; courseSel = null; pickItem = null; store.set('lesson', null);
+    S.degree = -1; S.arpKind = 'modal'; $('arpKind').value = 'modal'; drawTheory(); $('degree').value = '-1';
+    if (!$('paneCourse').hidden) renderCourse();
+    if (S.padOn) startPad();
+  }
   if ((S.exType.startsWith('sweep') || S.exType.startsWith('tap')) && S.subdiv === 2) { S.subdiv = 3; $('subdiv').value = '3'; }
   buildSeq();
 };

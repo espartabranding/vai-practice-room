@@ -98,14 +98,16 @@ details[open] summary { margin-bottom: 8px; }
 .legend i.c { border: 1.5px solid var(--violet); }
 .legend span.keys { margin-left: auto; }
 
-.tab { display: flex; overflow-x: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px; padding: 4px 0 8px; }
-.tcol { display: flex; flex-direction: column; align-items: stretch; min-width: 24px; flex: none; }
-.tcol b, .tcol i { height: 16px; line-height: 16px; font-size: 11px; text-align: center; font-style: normal; color: var(--muted); white-space: nowrap; overflow: visible; }
+.tab { font-family: ui-monospace, Consolas, monospace; font-size: 12px; padding: 2px 0 6px; }
+.trow { display: flex; margin-bottom: 4px; }
+.tcol { display: flex; flex-direction: column; align-items: stretch; width: 22px; flex: none; }
+.tcol b, .tcol i { height: 15px; line-height: 15px; font-size: 11px; text-align: center; font-style: normal; color: var(--muted); white-space: nowrap; overflow: visible; }
 .tcol b { color: var(--accent); text-align: left; font-family: var(--sans); font-weight: 600; }
-.tcol span { height: 16px; line-height: 16px; text-align: center; background: linear-gradient(#5a616b, #5a616b) center / 100% 1px no-repeat; }
+.tcol span { height: 14px; line-height: 14px; text-align: center; background: linear-gradient(#5a616b, #5a616b) center / 100% 1px no-repeat; }
 .tcol span em { font-style: normal; background: var(--panel); padding: 0 2px; color: var(--text); font-weight: 600; }
 .tcol.lab span { background: none; color: var(--muted); padding-right: 6px; text-align: right; }
-.tcol.bar span { min-width: 2px; background: #5a616b; }
+.tcol.bar { min-width: 0; width: 13px; }
+.tcol.bar span { background: linear-gradient(#5a616b, #5a616b) center / 1.5px 100% no-repeat; }
 .tcol.now span em { background: var(--accent); color: #1a1406; border-radius: 3px; }
 .tcol.now i { color: var(--accent); }
 #tabBox summary { margin: 2px 0 4px; }
@@ -209,6 +211,7 @@ details[open] summary { margin-bottom: 8px; }
       <option value="arp">Arpeggio in position</option>
       <option value="sweep5">Sweep arpeggio · 5 strings</option>
       <option value="sweep3">Sweep arpeggio · 3 strings</option>
+      <option value="tap">Tapping arpeggio · one string</option>
     </select>
     <select id="pattern" aria-label="Pattern"><option value="1">Straight</option><option value="3">Groups of 3</option><option value="4">Groups of 4</option></select>
     <select id="degree" aria-label="Arpeggio degree" hidden></select>
@@ -594,11 +597,34 @@ function sweepTones(pcs, tag, strings) {
   }
   return up.concat(up.slice(0, -1).reverse().slice(0, -1)).map(x => ({ ...x, d: tag }));
 }
+// tapping numa corda (estilo Eruption): indicador e outro dedo da mão esquerda em duas notas do acorde e a mão
+// direita bate (T) na nota seguinte do acorde, mais aguda. Ordem: T, puxa para o indicador, martela o outro dedo.
+// Procura nas cordas B, G e mi a forma que cabe na mão (até 4 casas) e com a batida mais baixa.
+function tapTones(pcs, tag) {
+  const tones = new Set(pcs), color = S.degree === -2 ? mod12(S.key + S.scale.color) : null; let best = null;
+  for (const s of [4, 3, 5]) {
+    const at = f => tones.has(mod12(TUNING[s] + f));
+    for (let a = Math.max(1, S.pos); a <= Math.min(FRETS, S.pos + 5); a++) {
+      if (!at(a)) continue;
+      let b = a + 1; while (b <= a + 4 && !at(b)) b++;
+      if (b > a + 4) continue;
+      let c = b + 2; while (c <= FRETS && !at(c)) c++;
+      if (c > FRETS) continue;
+      // no arpejo modal, prefere a forma que tem a nota de cor; depois, a batida mais baixa
+      const hc = color !== null && [a, b, c].some(f => mod12(TUNING[s] + f) === color);
+      if (!best || hc > best.hc || (hc === best.hc && c < best.c)) best = { s, a, b, c, hc };
+    }
+  }
+  if (!best) return [];
+  const { s, a, b, c } = best, n = (f, fg) => ({ s, f, m: TUNING[s] + f, d: tag, fg });
+  const fb = b - a === 1 ? 2 : b - a === 2 ? 3 : 4;
+  return [n(c, 'T'), n(a, 1), n(b, fb), n(c, 'T'), n(a, 1), n(b, fb)];
+}
 function buildSeq() {
   if (S.exType === 'scale') seq = grouped(scaleNotes(), S.pattern);
   else {
     const strings = S.exType === 'sweep5' ? [1, 2, 3, 4, 5] : [3, 4, 5];
-    seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : sweepTones(ch.pcs, ch.key, strings));
+    seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : S.exType === 'tap' ? tapTones(ch.pcs, ch.key) : sweepTones(ch.pcs, ch.key, strings));
   }
   seqIdx = 0;
   drawFret();
@@ -669,6 +695,7 @@ const fingerBadge = (x, y, n, font) => n === undefined ? '' : `<circle cx="${x +
 // digitação sugerida: segue o desenho na ordem em que as notas soam; enquanto cabe em 5 casas a mão fica parada
 // (um dedo por casa, mínimo esticando na 5ª), quando não cabe a mão muda de posição. Corda solta = 0.
 function fingering(notes) {
+  if (notes.some(n => n.fg !== undefined)) return (s, f) => (notes.find(n => n.s === s && n.f === f) || {}).fg;
   const peak = notes.reduce((k, n, i) => n.m > notes[k].m ? i : k, 0), path = notes.slice(0, peak + 1), map = new Map();
   let group = [];
   const flush = () => {
@@ -695,18 +722,29 @@ function drawTab(arpOn) {
   const names = arpOn ? Object.fromEntries(arpChords().map(c => [c.key, c.name])) : {};
   const cell = (n, s) => `<span>${n && n.s === s ? `<em>${n.f}</em>` : ''}</span>`;
   const STR = [5, 4, 3, 2, 1, 0];
-  let h = `<div class="tcol lab"><b></b>${['e', 'B', 'G', 'D', 'A', 'E'].map(x => `<span>${x}</span>`).join('')}<i>${arpOn ? 'finger' : ''}</i></div>`;
-  let prevD;
+  // colunas da tablatura inteira; depois quebra em linhas que cabem na largura (sem rolagem), de preferência na troca de acorde
+  const cols = []; let prevD;
   seq.forEach((n, i) => {
     const head = arpOn && n.d !== prevD ? names[n.d] : '';
-    if (head && i > 0) h += `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>`;
+    if (head && i > 0) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
     prevD = n.d;
     const f = arpOn && fing[n.d] ? fing[n.d](n.s, n.f) : undefined;
-    h += `<div class="tcol${S.exOn && active === n ? ' now' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>`;
+    cols.push({ html: `<div class="tcol${S.exOn && active === n ? ' now' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
   });
-  el.innerHTML = h;
-  const now = el.querySelector('.now'); if (now && now.scrollIntoView) { const L = now.offsetLeft - el.offsetLeft; if (L < el.scrollLeft || L > el.scrollLeft + el.clientWidth - 40) el.scrollLeft = L - 60; }
+  const lab = `<div class="tcol lab"><b></b>${['e', 'B', 'G', 'D', 'A', 'E'].map(x => `<span>${x}</span>`).join('')}<i>${arpOn ? 'fing.' : ''}</i></div>`;
+  const per = Math.max(8, Math.floor(((el.clientWidth || 1100) - 40) / 22));
+  const rows = []; let row = [];
+  cols.forEach((c, i) => {
+    if (row.length >= per) { // se houver uma divisória de acorde nas últimas colunas, quebra nela
+      const k = row.map(x => x.bar).lastIndexOf(true);
+      if (k > per * 0.6) { rows.push(row.slice(0, k)); row = row.slice(k + 1); } else { rows.push(row); row = []; }
+    }
+    if (!(c.bar && row.length === 0)) row.push(c);
+  });
+  if (row.length) rows.push(row);
+  el.innerHTML = rows.map(r => `<div class="trow">${lab}${r.map(c => c.html).join('')}</div>`).join('');
 }
+addEventListener('resize', () => drawTab(S.exType !== 'scale'));
 const FB = { x0: 46, x1: 1186, y0: 18, y1: 168 };
 FB.fw = (FB.x1 - FB.x0) / FRETS; FB.sh = (FB.y1 - FB.y0) / 5;
 const fx = f => f === 0 ? FB.x0 - 22 : FB.x0 + (f - 0.5) * FB.fw;
@@ -736,7 +774,7 @@ function drawFret() {
   const curNotes = arpOn ? seq.filter(n => n.d === curKey) : [];
   const finger = fingering(curNotes);
   if (curNotes.length > 1) {
-    const peak = curNotes.reduce((k, n, i) => n.m > curNotes[k].m ? i : k, 0), path = curNotes.slice(0, peak + 1);
+    const peak = curNotes.reduce((k, n, i) => n.m > curNotes[k].m ? i : k, 0), path = S.exType === 'tap' ? [...new Map(curNotes.map(n => [n.f, n])).values()].sort((x, y) => x.m - y.m) : curNotes.slice(0, peak + 1);
     o += `<polyline points="${path.map(n => fx(n.f) + ',' + sy(n.s)).join(' ')}" fill="none" stroke="${'#e0b04a'}" stroke-width="3" stroke-opacity=".55" stroke-linejoin="round" stroke-linecap="round"/>`;
     const a = path[0];
     o += `<circle cx="${fx(a.f)}" cy="${sy(a.s)}" r="17" fill="none" stroke="#e0b04a" stroke-width="1.2" stroke-dasharray="2 3"/>`;
@@ -789,7 +827,7 @@ function drawFret() {
     chord: `Chord tones of ${ref.name}: ${ref.roles.join(' ')}. Dashed notes are chord tones outside the scale.`,
     parallel: 'Violet: notes this scale changes. Dashed: where the major scale note would be.',
     modes: parentPc === null ? 'Mode names work on the seven major modes.' : 'Each note is the start of a different mode of the same parent key.' };
-  $('viewHint').textContent = arpOn ? `Fingers: 1 index · 2 middle · 3 ring · 4 pinky · 0 open string. The line is the arpeggio shape, starting at the dashed ring. ${hints[view]}` : hints[view];
+  $('viewHint').textContent = arpOn ? `Fingers: 1 index · 2 middle · 3 ring · 4 pinky · 0 open string · T right-hand tap. The line is the arpeggio shape, starting at the dashed ring. ${hints[view]}` : hints[view];
 }
 $('fret').addEventListener('pointerdown', e => {
   const svg = $('fret'), pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -885,7 +923,7 @@ $('degree').onchange = e => { S.degree = +e.target.value; buildSeq(); };
 function syncExUi() { const sw = S.exType !== 'scale'; $('pattern').hidden = sw; $('degree').hidden = !sw; }
 $('exType').onchange = e => {
   S.exType = e.target.value; syncExUi();
-  if (S.exType.startsWith('sweep') && S.subdiv === 2) { S.subdiv = 3; $('subdiv').value = '3'; }
+  if ((S.exType.startsWith('sweep') || S.exType === 'tap') && S.subdiv === 2) { S.subdiv = 3; $('subdiv').value = '3'; }
   buildSeq();
 };
 $('pos').oninput = e => { S.pos = +e.target.value; $('posShow').textContent = 'fret ' + S.pos; buildSeq(); };
@@ -1077,6 +1115,37 @@ const COURSE = [
         how: ["Learn the shape at 40 BPM.", "Listen for where the #11 lands in the shape.", "Use it as a fast fill over the background."],
         goal: "Clean 5-string maj7#11 sweeps at 60 BPM." },
     ] },
+  { id: 'tapping', name: 'Tapping', intro: "Two-hand tapping arpeggios on one string: the left hand frets two chord tones, the right hand taps a higher one, and the three notes roll as tap, pull-off, hammer-on. Every lesson shows the left-hand fingers, the T for the tap, and the tab.",
+    lessons: [
+      { id: 'tp1', t: 'One chord, one string: E minor', key: 'E', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 4]],
+        why: "The classic tapping arpeggio: on the B string, the index frets E (5), the pinky frets G (8) and the right hand taps B (12). Three notes of E minor, played as one rolling motion.",
+        how: ["Tap the 12th fret with a right-hand finger and pull it off sideways, so the index note sounds.", "Hammer the pinky onto the 8th fret without picking.", "Repeat in triplets: T-1-4, T-1-4. Mute the other strings with the side of the right hand."],
+        goal: "Clean, even triplets at 70 BPM, every note the same volume." },
+      { id: 'tp2', t: 'Moving the shape: i–bVI–bVII', key: 'E', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [8, '', 1], [10, '', 1], [0, 'm', 1]],
+        why: "Tapping becomes music when the chord changes under it. Em, C and D each get their own three-note shape: watch which notes stay and which move.",
+        how: ["Play each chord's shape on its own first, with the background on to hear the chord.", "Keep the triplets going through the changes.", "Notice that some chords move to the G string, where they fit the hand better."],
+        goal: "The whole progression without stopping, at 60 BPM." },
+      { id: 'tp3', t: 'Minor i–iv–V with harmonic minor', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [5, 'm', 1], [7, '', 1], [0, 'm', 1]],
+        why: "Am, Dm and E give the neoclassical sound: the E chord brings in G#, the leading tone back to A.",
+        how: ["Find the G# inside the E shape.", "Play each chord twice, then once.", "Let the last Am ring."],
+        goal: "Am–Dm–E–Am at 60 BPM in triplets." },
+      { id: 'tp4', t: 'Major triads: I–IV–V', key: 'G', scale: 'Ionian (Major)', pos: 3, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, '', 1], [5, '', 1], [7, '', 1], [0, '', 1]],
+        why: "The same technique with major triads (1 3 5) sounds bright and anthemic instead of dark.",
+        how: ["Compare a major shape with the minor ones: the 3rd is one fret higher.", "Keep the tapping hand relaxed: the tap is a quick flick, not a press.", "Try 16ths when triplets feel easy."],
+        goal: "G–C–D–G clean at 60 BPM." },
+      { id: 'tp5', t: 'Diminished 7: the shape that repeats', key: 'A', scale: 'Harmonic minor', pos: 4, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[11, 'dim7', 1], [2, 'dim7', 1], [5, 'dim7', 1], [0, 'm', 1]],
+        why: "A diminished 7 chord is four notes a minor third apart, so G#dim7, Bdim7 and Ddim7 have the same four notes: one tapping shape covers all three, only the bass changes. Resolve to Am at the end.",
+        how: ["Watch the fretboard: the shape does not move while the chord name changes.", "Move the Position slider up three frets: the same shape appears again, because the chord repeats every minor third.", "Listen for the tension resolving on Am."],
+        goal: "The three dim7 shapes and the Am resolution at 60 BPM." },
+      { id: 'tp6', t: '7th chords: ii–V–I', key: 'C', scale: 'Ionian (Major)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: IIVI,
+        why: "Tapping three notes of each 7th chord (Dm7, G7, Cmaj7) gives a smooth, jazzy cascade over the most common progression in jazz.",
+        how: ["Read the degree labels: each shape picks three of the four chord tones.", "Play with the background on and land each shape on beat 1.", "Try the same with Arpeggio in position to see the full chords."],
+        goal: "Through the ii–V–I without a gap at 60 BPM." },
+      { id: 'tp7', t: 'Lydian modal tapping', key: 'E', scale: 'Lydian', pos: 7, ex: 'tap', src: -2, bpm: 40, subdiv: 3, prog: [[0, 'maj7', 2], [2, '', 2]],
+        why: "Tapping from the modal arpeggio (1 3 5 7 #11) puts the color note in the shape: a floating, Lydian sound.",
+        how: ["Find where the #11 (A#) lands in the shape.", "Let the tapped note ring a little longer.", "Move the position slider and find the shape in another place."],
+        goal: "A tapped Lydian phrase that ends on the #11." },
+    ] },
   { id: 'country', name: 'Country', intro: "Bright, twangy and chord-following: major pentatonic, the country scale with its b3–3 move, triads on the top strings, 6th arpeggios and chromatic runs.",
     lessons: [
       { id: 'co1', t: 'Major pentatonic in G', key: 'G', scale: 'Major pentatonic', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: I_IV_V,
@@ -1180,7 +1249,7 @@ const PLAYERS = {
       { id: 'evh', name: 'Eddie Van Halen', from: 'Van Halen · Eruption', style: "Blues-scale fury plus tapped triad arpeggios across one string and wide pentatonic stretches.",
         items: [
           { t: 'Blues scale in A', key: 'A', scale: 'Blues scale', pos: 5, ex: 'scale', pattern: 3, view: 'box', bpm: 60, subdiv: 4, prog: [[0, '5', 4]], note: "Fast groups of three with the b5 thrown in: the core of the Van Halen runs." },
-          { t: 'Triads for tapping', key: 'E', scale: 'Aeolian (Natural minor)', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 50, prog: [[0, 'm', 1], [8, '', 1], [10, '', 1], [0, 'm', 1]], note: "Em, C and D chord tones in one position. Tapping style: fret the low two notes, tap the top one on the same string." },
+          { t: 'Triads for tapping', key: 'E', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [8, '', 1], [10, '', 1], [0, 'm', 1]], note: "Em, C and D on one string: the left hand frets two chord tones, the right hand taps the third (T). The Tapping track has more." },
         ] },
       { id: 'slash', name: 'Slash', from: "Guns N' Roses · Sweet Child o' Mine", style: "Melodic minor pentatonic and natural minor lines, tuned down a half step, with long vibrato and wah.",
         items: [
@@ -1310,6 +1379,34 @@ const PLAYERS = {
           { t: 'Major 9 arpeggios', key: 'C', scale: 'Ionian (Major)', pos: 7, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, 'maj9', 2], [5, 'maj9', 2]], note: "Cmaj9 and Fmaj9: the 9 on top of a major 7 chord." },
         ] },
     ] },
+  tapping: {
+    main: [
+      { t: 'Minor triad on one string', key: 'E', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 4]], note: "Index, pinky, tap: the basic tapping arpeggio." },
+      { t: 'Major triad on one string', key: 'G', scale: 'Ionian (Major)', pos: 3, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, '', 4]], note: "Same motion, brighter shape." },
+      { t: 'Diminished 7 (moves in minor thirds)', key: 'A', scale: 'Harmonic minor', pos: 4, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[11, 'dim7', 2], [2, 'dim7', 2]], note: "Symmetric: the shape repeats every three frets." },
+      { t: 'Major 7 (Lydian color)', key: 'E', scale: 'Lydian', pos: 7, ex: 'tap', src: -2, bpm: 40, subdiv: 3, prog: [[0, 'maj7', 4]], note: "Taps from the maj7#11 modal arpeggio." },
+    ],
+    players: [
+      { id: 'evh-tap', name: 'Eddie Van Halen', from: 'Van Halen · Eruption', style: "Made two-hand tapping famous: fast triplets on one string, tap, pull-off, hammer-on, outlining chords that change underneath.",
+        items: [
+          { t: '"Eruption" style: E minor on the B string', key: 'E', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 4]], note: "Frets 5 and 8 with the left hand, tap at 12: E, G and B." },
+          { t: 'Changing chords under the taps', key: 'E', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [8, '', 1], [10, '', 1], [0, 'm', 1]], note: "Em, C, D: the triplet motion never stops while the shapes move." },
+        ] },
+      { id: 'satriani-tap', name: 'Joe Satriani', from: 'Surfing with the Alien · Midnight', style: "\"Midnight\" is a whole piece of two-hand tapping; the rock solos use taps for wide, fast arpeggios.",
+        items: [
+          { t: 'Major triads I–IV–V', key: 'G', scale: 'Ionian (Major)', pos: 3, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, '', 1], [5, '', 1], [7, '', 1], [0, '', 1]], note: "Bright triads, tapped in steady triplets." },
+          { t: 'Lydian modal tapping', key: 'E', scale: 'Lydian', pos: 7, ex: 'tap', src: -2, bpm: 40, subdiv: 3, prog: [[0, 'maj7', 2], [2, '', 2]], note: "The #11 inside the tapped shape." },
+        ] },
+      { id: 'batten', name: 'Jennifer Batten', from: 'Michael Jackson world tours · solo albums', style: "Known for fast, precise two-hand tapping lines, including tapped classical pieces.",
+        items: [
+          { t: 'Neoclassical i–iv–V', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [5, 'm', 1], [7, '', 1], [0, 'm', 1]], note: "Am, Dm and E, with G# as the leading tone." },
+          { t: 'Diminished 7 tapping', key: 'A', scale: 'Harmonic minor', pos: 4, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[11, 'dim7', 1], [2, 'dim7', 1], [5, 'dim7', 1], [0, 'm', 1]], note: "The symmetric shape moved up in minor thirds." },
+        ] },
+      { id: 'jordan', name: 'Stanley Jordan', from: 'Magic Touch', style: "Jazz with the touch technique: both hands tap on the fretboard, playing chords and lines at the same time.",
+        items: [
+          { t: 'Tapped ii–V–I', key: 'C', scale: 'Ionian (Major)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: IIVI, note: "Three notes of each 7th chord, tapped over Dm7, G7 and Cmaj7." },
+        ] },
+    ] },
   country: {
     main: [
       { t: 'Major pentatonic', key: 'G', scale: 'Major pentatonic', pos: 2, ex: 'scale', view: 'box', bpm: 70, prog: I_IV_V, note: "The base of almost every country solo." },
@@ -1354,7 +1451,7 @@ const PLAYERS = {
 };
 const playerById = id => { for (const g in PLAYERS) { const p = PLAYERS[g].players.find(x => x.id === id); if (p) return { g, p }; } return null; };
 const playersFor = scale => { const out = []; for (const g in PLAYERS) PLAYERS[g].players.forEach(p => { if (p.items.some(it => it.scale === scale) && !out.includes(p)) out.push(p); }); return out; };
-const EXNAME = { scale: 'Scale run', arp: 'Arpeggio in position', sweep3: '3-string sweep', sweep5: '5-string sweep' };
+const EXNAME = { scale: 'Scale run', arp: 'Arpeggio in position', sweep3: '3-string sweep', sweep5: '5-string sweep', tap: 'Tapping arpeggio' };
 const SRCNAME = { '-2': 'modal arpeggio', '-3': 'follows the chords' };
 const SUBNAME = { 1: 'quarters', 2: 'eighths', 3: 'triplets', 4: '16ths' };
 const PATNAME = { 1: 'straight', 3: 'groups of 3', 4: 'groups of 4' };

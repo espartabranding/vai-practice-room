@@ -48,6 +48,13 @@ label.k { font-size: 12px; color: var(--muted); }
 #theory .formula span.r { background: var(--accent); color: #1a1406; }
 #theory .formula span.rel { background: var(--rel); color: #1a1406; box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--accent); }
 #theory .formula span.c { color: var(--violet); border-color: var(--violet); }
+.harm { column-span: all; margin: 6px 0 12px; }
+.harm table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.harm th, .harm td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.harm th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .8px; text-transform: uppercase; }
+.harm tbody tr { cursor: pointer; }
+.harm tbody tr:hover { background: var(--panel2); }
+.harm tbody tr.cur { background: var(--accent-soft); }
 .tonics { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; margin-bottom: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
 .tonics i { width: 16px; height: 16px; border-radius: 50%; display: block; }
 .tonics i.r { background: var(--accent); }
@@ -389,6 +396,7 @@ const QUAL = {
   '7b9': { ivs: [0, 4, 7, 10, 1], lab: ['R', '3', '5', 'b7', 'b9'] },
   '7#9': { ivs: [0, 4, 7, 10, 3], lab: ['R', '3', '5', 'b7', '#9'] },
   '7#5': { ivs: [0, 4, 8, 10], lab: ['R', '3', '#5', 'b7'] },
+  'maj7#5': { ivs: [0, 4, 8, 11], lab: ['R', '3', '#5', '7'] },
   '7#11': { ivs: [0, 4, 7, 10, 6], lab: ['R', '3', '5', 'b7', '#11'] },
 };
 const ROMAN12 = ['I', 'bII', 'II', 'bIII', 'III', 'IV', '#IV', 'V', 'bVI', 'VI', 'bVII', 'VII'];
@@ -518,15 +526,18 @@ function triad(degIndex, base = 48) {
 }
 // acordes da base: {r: semitons a partir da tônica, q: qualidade, bars: compassos}
 const chordRoot = c => mod12(S.key + c.r);
-const chordLabel = c => noteAt(chordRoot(c)) + c.q;
-const romanOf = c => { const r = ROMAN12[mod12(c.r)]; return /^(m(?!aj)|dim)/.test(c.q) ? r.toLowerCase() : r; };
-const chordInfo = c => ({ pcs: QUAL[c.q].ivs.map(iv => mod12(chordRoot(c) + iv)), roles: QUAL[c.q].lab, name: chordLabel(c) });
+const chordLabel = c => c.name || noteAt(chordRoot(c)) + c.q;
+const romanOf = c => { if (c.roman) return c.roman; const r = ROMAN12[mod12(c.r)]; return /^(m(?!aj)|dim)/.test(c.q) ? r.toLowerCase() : r; };
+const chordIvs = c => c.ivs || QUAL[c.q].ivs; // acordes de grau trazem os próprios intervalos
+const chordInfo = c => ({ pcs: chordIvs(c).map(iv => mod12(chordRoot(c) + iv)), roles: c.roles || QUAL[c.q].lab, name: chordLabel(c) });
 function degChord(d) { // tríade do grau d da escala
   const st = S.scale.steps, t = triad(d, 0), th = t[1] - t[0], fi = t[2] - t[0];
   return { r: st[d % st.length], q: th === 3 ? (fi === 6 ? 'dim' : 'm') : th === 4 && fi === 8 ? 'aug' : '', bars: 2 };
 }
 // a base toca a progressão da lição; sem lição, a da escala; sem nenhuma, as tríades do vamp
+const followDegrees = () => S.exType !== 'scale' && S.degree !== -2 && S.degree !== -3;
 function bgChords() {
+  if (followDegrees()) return arpChords().map(a => ({ r: a.r, q: '', ivs: a.ivs, roles: a.roles, name: a.name, roman: a.roman, bars: 1, tag: a.key }));
   const src = (S.lesson && S.lesson.prog) || S.scale.bg;
   if (src) return src.map(([r, q, bars]) => ({ r, q, bars: bars || 2 }));
   return (S.scale.vamp || [0]).map(degChord);
@@ -539,7 +550,7 @@ function padChord(c, t) { // teclado contínuo: senos e triângulos, ataque e so
   if (!S.padOn || !c) return;
   let root = 48 + chordRoot(c); if (root > 54) root -= 12;
   const voices = [root - 12]; let prev = root - 12;
-  QUAL[c.q].ivs.forEach(iv => { let m = root + iv; while (m <= prev) m += 12; voices.push(m); prev = m; });
+  chordIvs(c).forEach(iv => { let m = root + iv; while (m <= prev) m += 12; voices.push(m); prev = m; });
   const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(5 / (voices.length + 1), t, 1.2);
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.2;
   const lfo = ctx.createOscillator(), lfoG = ctx.createGain(); lfo.frequency.value = 0.08; lfoG.gain.value = 180; lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start(t);
@@ -703,9 +714,20 @@ function grouped(list, g) {
 const modalPcs = () => S.scale.arp.ivs.map(iv => mod12(S.key + iv));
 // grau d da escala empilhado em terças da própria escala (nota sim, nota não): tríade (3 notas) ou tétrade (4)
 const SLOT = [{}, { 1: 'b2', 2: '2', 3: 'b3', 4: '3', 5: '4', 6: '#4' }, { 5: '4', 6: 'b5', 7: '5', 8: '#5', 9: '6' }, { 8: 'b6', 9: 'bb7', 10: 'b7', 11: '7', 0: 'R' }];
+const FAMILY = {
+  major: MODE_NAMES,
+  harm: ['Harmonic minor', 'Locrian ♮6', 'Ionian #5', 'Dorian #4', 'Phrygian dominant', 'Lydian #2', 'Altered bb7'],
+  mel: ['Melodic minor', 'Dorian b2', 'Lydian augmented', 'Lydian dominant', 'Mixolydian b6', 'Locrian ♮2', 'Altered'],
+};
+// a qual família a escala pertence e em que grau dela começa
+function family(sc = S.scale) {
+  if (sc.mode !== undefined) return { names: FAMILY.major, i: sc.mode };
+  const at = { 'Harmonic minor': ['harm', 0], 'Phrygian dominant': ['harm', 4], 'Melodic minor': ['mel', 0], 'Lydian dominant': ['mel', 3], 'Altered': ['mel', 6] }[sc.name];
+  return at ? { names: FAMILY[at[0]], i: at[1] } : null;
+}
 const harmSteps = () => S.scale.steps.filter(iv => iv !== S.scale.passing); // a nota de passagem (bebop, blues) não é grau da harmonia
-function degArp(d) {
-  const st = harmSteps(), n = st.length, size = S.arpKind === 'seventh' ? 4 : 3;
+function degArp(d, kind = S.arpKind) {
+  const st = harmSteps(), n = st.length, size = kind === 'seventh' ? 4 : 3;
   const ivs = [];
   for (let k = 0; k < size; k++) { const i = d + 2 * k; ivs.push(st[i % n] + 12 * Math.floor(i / n) - st[d]); }
   const root = mod12(S.key + st[d]), pcs = ivs.map(iv => mod12(root + iv));
@@ -714,14 +736,16 @@ function degArp(d) {
   const key = ivs.map(mod12).join(',');
   const q = Object.keys(QUAL).find(k => QUAL[k].ivs.map(mod12).join(',') === key);
   const name = noteAt(root) + (q !== undefined ? q : `(${roles.slice(1).join(' ')})`);
-  return { key: 't' + d, pcs, roles, name, d };
+  const minorish = roles[1] === 'b3' || roles[1] === '2';
+  const roman = n === 7 ? (minorish ? ROMAN[d].toLowerCase() : ROMAN[d]) + (roles[2] === 'b5' ? '°' : roles[2] === '#5' ? '+' : '') : deg(st[d]);
+  return { key: 't' + d, pcs, roles, name, d, ivs, r: st[d], roman };
 }
 function arpChords() {
   const sc = S.scale;
   if (S.degree === -2) return [{ key: 'm', pcs: modalPcs(), roles: sc.arp.ivs.map(iv => deg(iv)), name: modalName() }];
   if (S.degree === -3) return bgChords().map((c, i) => ({ key: 'c' + i, ...chordInfo(c) }));
   const n = harmSteps().length, ds = S.degree === -1 ? Array.from({ length: n }, (_, d) => d) : [S.degree]; // -1: percorre todos os graus (os modos)
-  return ds.map(degArp);
+  return ds.map(d => degArp(d)); // (não passar o índice do map como tipo de acorde)
 }
 // arpejo na posição: as notas do acorde dentro da janela, da fundamental mais grave para cima, e volta
 function posArp(pcs, tag) {
@@ -819,7 +843,7 @@ function buildSeq() {
     const strings = sweepStrings();
     seq = arpChords().flatMap(ch => S.exType === 'arp' ? posArp(ch.pcs, ch.key) : S.exType === 'tap' ? tapTones(ch.pcs, ch.key) : S.exType === 'tapx' ? tapSkip(ch.pcs, ch.key) : sweepTones(ch.pcs, ch.key, strings));
   }
-  seqIdx = 0; activeIdx = -1;
+  seqIdx = 0; activeIdx = -1; padTag = null;
   drawFret();
 }
 
@@ -835,6 +859,10 @@ function schedule() {
     if (S.click) bell(nextTime, level);
     let note = null, idx = -1;
     if (S.exOn && seq.length) { idx = seqIdx % seq.length; note = seq[idx]; seqIdx++; tone(note.m, nextTime, 0.4, 2.6); }
+    if (note && S.padOn && followDegrees() && note.d !== padTag) { // novo grau no arpejo: a base troca para o acorde dele
+      padTag = note.d; const list = bgChords(), i = list.findIndex(c => c.tag === note.d);
+      if (i >= 0) { padIdx = i; padChord(list[i], nextTime); setTimeout(updateBgNow, Math.max(0, (nextTime - ctx.currentTime) * 1000)); }
+    }
     if (sub === 0 && beat === 0 && tick > 0 && S.builder && ++builderBars >= +$('bBars').value) { builderBars = 0; setBpm(Math.min(+$('bMax').value, S.bpm + +$('bStep').value)); }
     visualQueue.push({ time: nextTime, beat, sub, level, note, idx });
     nextTime += 60 / S.bpm / per; tick++;
@@ -1063,6 +1091,18 @@ function vsMajor() { // o que muda em relação à escala maior com a mesma tôn
 }
 const modalName = () => keyName(S.key) + S.scale.arp.suf;
 function triadHasColor(d) { return triad(d, 0).map(mod12).includes(mod12(S.key + S.scale.color)); }
+// campo harmônico: o acorde de cada grau da escala (tríade e tétrade) e o modo que começa ali; clique toca o arpejo do grau
+function harmonyTable() {
+  const st = harmSteps(), fam = family(), colorPc = mod12(S.key + S.scale.color);
+  const rows = st.map((iv, d) => {
+    const t = degArp(d, 'triad'), q = degArp(d, 'seventh'), has = q.pcs.includes(colorPc);
+    const mode = fam ? fam.names[(fam.i + d) % fam.names.length] : '';
+    return `<tr data-deg="${d}" class="${S.degree === d ? 'cur' : ''}"><td>${q.roman}</td><td>${noteAt(mod12(S.key + iv))}</td><td>${t.name}</td><td>${has ? '★ ' : ''}${q.name}</td>${fam ? `<td>${mode}</td>` : ''}</tr>`;
+  }).join('');
+  return `<div class="harm"><p><b>Chords on each degree</b> click a row to play its arpeggio over that chord</p>
+    ${fam ? '' : '<p class="maphint">This scale has no seven modes: the chords are stacked from every other note of the scale, so pentatonic and symmetric scales give open, quartal or symmetric sounds.</p>'}
+    <table><thead><tr><th>Degree</th><th>Note</th><th>Triad</th><th>7th chord</th>${fam ? '<th>Mode from here</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
 function drawTheory() {
   const sc = S.scale, rel = sc.rel, tonic = keyName(S.key);
   const formula = sc.steps.map(iv => `<span class="${iv === 0 ? 'r' : rel && iv === rel.iv ? 'rel' : iv === sc.color ? 'c' : ''}">${deg(iv)}</span>`).join('');
@@ -1090,6 +1130,7 @@ function drawTheory() {
     <p><b>Sound</b> ${sc.mood}</p>
     <p><b>Use it</b> ${sc.use}</p>
     <p><b>Background</b> ${vamp}</p>
+    ${harmonyTable()}
     <p class="tip">${sc.tip}</p>`;
   const n = harmSteps().length, seven = n === 7, colorPc = mod12(S.key + sc.color);
   const bgNames = [...new Set(bgChords().map(chordLabel))].join(' · ');
@@ -1106,6 +1147,11 @@ function drawTheory() {
     S.key = mod12(parent + MAJOR[k]); $('key').value = S.key;
     const idx = SCALES.findIndex(x => x.mode === k); S.scale = SCALES[idx]; $('scale').value = idx; S.degree = -2; refreshMusic();
     audio(); tone(48 + S.key, ctx.currentTime + 0.01, 0.4, 2.5);
+  });
+  document.querySelectorAll('.harm tr[data-deg]').forEach(tr => tr.onclick = () => { // toca o arpejo do grau com o acorde por baixo
+    S.degree = +tr.dataset.deg; $('degree').value = String(S.degree);
+    if (S.exType === 'scale') { S.exType = 'arp'; $('exType').value = 'arp'; syncExUi(); }
+    drawTheory(); buildSeq(); if (S.padOn) startPad();
   });
   updateBgNow();
 }
@@ -1194,8 +1240,10 @@ function startPad() {
   $('padOn').textContent = '■ Stop'; syncLessonBtn();
 }
 function padTick() { const list = bgChords(); padIdx = padStep % list.length; padChord(list[padIdx]); updateBgNow(); padWait(); }
+let padTag = null; // grau do arpejo que a base está tocando
 function padWait() {
   if (!S.padOn) return;
+  if (followDegrees() && S.exOn) { padTimer = setTimeout(padWait, 500); return; } // o arpejo é quem troca o acorde
   const list = bgChords(), c = list[padIdx % list.length];
   if (S.bpm < 1) { padTimer = setTimeout(padWait, 500); return; }
   padTimer = setTimeout(() => { padStep++; padTick(); }, c.bars * S.beats * 60000 / S.bpm);

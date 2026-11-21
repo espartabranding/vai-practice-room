@@ -113,6 +113,11 @@ details[open] summary { margin-bottom: 8px; }
 .tcol b, .tcol i { height: 15px; line-height: 15px; font-size: 11px; text-align: center; font-style: normal; color: var(--muted); white-space: nowrap; overflow: visible; }
 .tcol b { color: var(--accent); text-align: left; font-family: var(--sans); font-weight: 600; }
 .tsec { margin: 10px 0 2px; font-size: 13px; font-weight: 700; color: var(--accent); font-family: var(--sans); position: sticky; left: 0; width: max-content; }
+.tsec button { padding: 1px 8px; margin-left: 5px; font-size: 12px; }
+.tsec button.on { background: var(--accent); border-color: var(--accent); color: #1a1406; }
+.tcol[data-k] { cursor: pointer; }
+.tcol.chosen b { color: #fff; }
+.tcol.chosen span { background-color: var(--accent-soft); }
 /* estudo completo: uma linha só, com rolagem só na tablatura (ela acompanha a nota tocando) */
 .tab.oneline { position: relative; overflow-x: scroll; }
 .tab.oneline .trow { width: max-content; }
@@ -775,12 +780,33 @@ function degArp(d, kind = S.arpKind) {
 }
 // estudo completo: cada acorde escolhido em 6 cordas (do Mi grave), depois 5, 4, 3 e 2 (da corda Si), sempre até o mi agudo
 const defDegree = () => S.exType.startsWith('sweep') ? -1 : -2;
+// acorde escolhido na tablatura ou no braço, e a casa em que o usuário colocou a posição dele
+let viewKey = null, posOver = null;
+const clearView = () => { viewKey = null; posOver = null; };
+const shownArpKey = () => { const ch = arpChords(); return active && active.d !== undefined && S.exOn ? active.d : ch.some(c => c.key === viewKey) ? viewKey : (ch[0] ? ch[0].key : null); };
+function chooseChord(key) { // mostra o arpejo desse acorde; tocando, o exercício continua a partir dele
+  let c = arpChords().find(x => x.key === key); if (!c) return;
+  if (posOver && posOver.d !== c.d) { posOver = null; buildSeq(); c = arpChords().find(x => x.key === key); }
+  viewKey = key;
+  if (c.pos !== undefined) { S.pos = c.pos; const i = posFrets().indexOf(c.pos); if (i >= 0) $('pos').value = i; showPos(); }
+  if (S.exOn) { const i = seq.findIndex(n => n.d === key); if (i >= 0) seqIdx = i; } else active = null;
+  if (S.padOn && followDegrees()) { const list = bgChords(), i = list.findIndex(x => x.tag === key); if (i >= 0) { padIdx = i; padStep = i; padTag = key; padChord(list[i]); updateBgNow(); } }
+  drawFret();
+}
+const inSequence = () => S.exType.startsWith('sweep') && !S.lesson && S.degree === -1;
+function followPos() { // Position e setas: a casa escolhida é a fundamental do grau, e o arpejo desse grau aparece ali
+  if (!inSequence()) return;
+  const d = harmSteps().indexOf(mod12(TUNING[0] + S.pos - S.key)); if (d < 0) return;
+  const ch = arpChords(), cur = ch.find(c => c.key === shownArpKey()) || ch[0];
+  posOver = { d, f: S.pos }; buildSeq();
+  const t = arpChords().find(c => c.d === d && c.N === cur.N); if (t) chooseChord(t.key);
+}
 function arpChords() {
   const base = arpBase();
   // sequência dentro do tom: cada acorde na posição do seu modo, com a fundamental na corda Mi grave (C jônio, D dórico
   // duas casas à direita, E frígio...). O braço vai até a casa 17: passando da 13, a posição volta uma oitava
   const tonicFret = mod12(S.key - TUNING[0]);
-  const seqPos = c => { if (c.r === undefined) return undefined; let f = tonicFret + c.r; while (f > 13) f -= 12; return f; };
+  const seqPos = c => { if (c.r === undefined) return undefined; if (posOver && posOver.d === c.d) return posOver.f; let f = tonicFret + c.r; while (f > 13) f -= 12; return f; };
   // sweep de N cordas escolhido no menu (fora de uma lição): a mesma sequência do tom, só nessas cordas
   if (/^sweep\d/.test(S.exType) && !S.lesson && S.degree === -1) return base.map(c => ({ ...c, pos: seqPos(c) }));
   if (S.exType !== 'sweepAll') return base;
@@ -1079,7 +1105,7 @@ function drawTab(arpOn) {
   const per = Math.max(8, Math.floor(((el.clientWidth || 1100) - 44) / 22));
   // estudo completo: mostra só o bloco que está tocando (6, 5, 4, 3 ou 2 cordas), para o braço continuar na tela
   const blocks = [...new Set(Object.values(blockN))].filter(Boolean);
-  const showN = (active && S.exOn && blockN[active.d]) || blocks[0];
+  const shown = arpOn ? shownArpKey() : null, showN = blockN[shown] || blocks[0];
   const layout = N => {
     const cols = []; let prevD;
     seq.forEach((n, i) => {
@@ -1088,7 +1114,7 @@ function drawTab(arpOn) {
       if (head && cols.length) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
       prevD = n.d;
       const f = arpOn ? (fing[n.d] ? fing[n.d](n.s, n.f) : undefined) : n.fg;
-      cols.push({ html: `<div class="tcol${S.exOn && i === activeIdx ? ' playing' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
+      cols.push({ html: `<div class="tcol${S.exOn && i === activeIdx ? ' playing' : ''}${arpOn && n.d === shown ? ' chosen' : ''}"${arpOn ? ` data-k="${n.d}"` : ''}><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
     });
     const rows = []; let row = [];
     cols.forEach(c => {
@@ -1102,7 +1128,7 @@ function drawTab(arpOn) {
     return rows;
   };
   const rows = layout(showN), most = blocks.length ? Math.max(...blocks.map(N => layout(N).length)) : rows.length;
-  const title = showN ? `<div class="tsec">${showN} strings · block ${blocks.indexOf(showN) + 1} of ${blocks.length}</div>` : '';
+  const title = showN ? `<div class="tsec">${showN} strings · block ${blocks.indexOf(showN) + 1} of ${blocks.length}${blocks.map(N => `<button data-n="${N}" class="${N === showN ? 'on' : ''}" aria-label="${N} strings">${N}</button>`).join('')}</div>` : '';
   const spare = `<div class="trow" style="visibility:hidden">${lab}</div>`.repeat(Math.max(0, most - rows.length)); // reserva a altura do maior bloco: a página não pula
   el.innerHTML = title + rows.map(r => `<div class="trow">${lab}${r.map(c => c.html).join('')}</div>`).join('') + spare;
   el.classList.toggle('oneline', blocks.length > 0);
@@ -1112,6 +1138,11 @@ function drawTab(arpOn) {
   }
 }
 addEventListener('resize', () => drawTab(S.exType !== 'scale'));
+$('tab').addEventListener('click', e => { // clique num acorde da tablatura ou no número de cordas
+  const b = e.target.closest('[data-n]');
+  if (b) { const ch = arpChords(), cur = ch.find(c => c.key === shownArpKey()), t = ch.find(c => c.N === +b.dataset.n && cur && c.d === cur.d) || ch.find(c => c.N === +b.dataset.n); if (t) chooseChord(t.key); return; }
+  const col = e.target.closest('[data-k]'); if (col) chooseChord(col.dataset.k);
+});
 const FB = { x0: 46, x1: 1186, y0: 18, y1: 168 };
 FB.fw = (FB.x1 - FB.x0) / FRETS; FB.sh = (FB.y1 - FB.y0) / 5;
 const fx = f => f === 0 ? FB.x0 - 22 : FB.x0 + (f - 0.5) * FB.fw;
@@ -1119,7 +1150,7 @@ const sy = s => FB.y1 - s * FB.sh;
 function drawFret() {
   const arpOn = S.exType !== 'scale';
   const chords = arpOn ? arpChords() : [];
-  const curKey = active && active.d !== undefined && S.exOn ? active.d : (chords[0] ? chords[0].key : null);
+  const curKey = arpOn ? shownArpKey() : null;
   const curArp = chords.find(c => c.key === curKey) || null;
   const inSeq = new Set(arpOn ? seq.filter(n => n.d === curKey).map(n => n.s + ':' + n.f) : []);
   const inRun = new Set(arpOn ? [] : seq.map(n => n.s + ':' + n.f)), runFinger = arpOn ? null : fingering(seq);
@@ -1206,7 +1237,17 @@ function drawFret() {
     chord: scaleMode ? `White ring: notes of the background chord ${ref.name} (${ref.roles.join(' ')}). Every note of the scale shape stays lit.` : `Chord tones of ${ref.name}: ${ref.roles.join(' ')}. Dashed notes are chord tones outside the scale.`,
     parallel: 'Violet: notes this scale changes. Dashed: where the major scale note would be.',
     modes: parentPc === null ? 'Mode names work on the seven major modes.' : 'Each note is the start of a different mode of the same parent key.' };
-  $('viewHint').textContent = arpOn ? `Fingers: 1 index · 2 middle · 3 ring · 4 pinky · 0 open string · T right-hand tap. The line is the arpeggio shape, starting at the dashed ring. ${hints[view]}` : hints[view];
+  $('viewHint').textContent = arpOn ? `${inSequence() ? 'Click a chord in the tab or a note on the neck, or move Position, to see that arpeggio. ' : ''}Fingers: 1 index · 2 middle · 3 ring · 4 pinky · 0 open string · T right-hand tap. The line is the arpeggio shape, starting at the dashed ring. ${hints[view]}` : hints[view];
+}
+// na sequência, clicar numa nota da escala fora do desenho mostra o arpejo do grau dela; na corda Mi grave, com a fundamental ali
+function neckToChord(s, f) {
+  if (!inSequence()) return false;
+  const shown = shownArpKey(); if (seq.some(n => n.d === shown && n.s === s && n.f === f)) return false;
+  const d = harmSteps().indexOf(mod12(TUNING[s] + f - S.key)); if (d < 0) return false;
+  const cur = arpChords().find(c => c.key === shown);
+  if (s === 0 && f <= 13) { posOver = { d, f }; buildSeq(); }
+  const t = arpChords().find(c => c.d === d && (!cur || c.N === cur.N)); if (!t) return false;
+  chooseChord(t.key); return true;
 }
 $('fret').addEventListener('pointerdown', e => {
   const svg = $('fret'), pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -1214,6 +1255,7 @@ $('fret').addEventListener('pointerdown', e => {
   const s = Math.round((FB.y1 - p.y) / FB.sh); if (s < 0 || s > 5) return;
   const f = p.x < FB.x0 ? 0 : Math.min(FRETS, Math.floor((p.x - FB.x0) / FB.fw) + 1);
   audio(); const m = TUNING[s] + f; tone(m, ctx.currentTime + 0.005, 0.45, 3);
+  if (neckToChord(s, f)) { showNow(m); return; }
   active = { s, f, m }; drawFret(); showNow(m);
 });
 
@@ -1340,8 +1382,8 @@ function showPos() {
   const shape = S.scale.mode !== undefined ? ` · ${MODE_NAMES[(S.scale.mode + set.indexOf(iv)) % 7]} shape` : '';
   $('posShow').textContent = `Pos ${set.indexOf(iv) + 1}/${set.length} · from ${deg(iv)}${shape} · fret ${S.pos}`;
 }
-function stepPos(d) { const fr = posFrets(), i = Math.max(0, Math.min(fr.length - 1, fr.indexOf(S.pos) + d)); S.pos = fr[i]; $('pos').value = i; showPos(); buildSeq(); }
-function refreshMusic() { syncPos(); syncExUi(); drawTheory(); buildSeq(); if (S.padOn) startPad(); }
+function stepPos(d) { const fr = posFrets(), i = Math.max(0, Math.min(fr.length - 1, fr.indexOf(S.pos) + d)); S.pos = fr[i]; $('pos').value = i; showPos(); buildSeq(); followPos(); }
+function refreshMusic() { clearView(); const c0 = !S.lesson && S.exType.startsWith('sweep') ? arpChords()[0] : null; syncPos(c0 && c0.pos !== undefined ? c0.pos : S.pos); syncExUi(); drawTheory(); buildSeq(); if (S.padOn) startPad(); }
 NOTES.forEach((n, i) => $('key').insertAdjacentHTML('beforeend', `<option value="${i}">${keyName(i)}</option>`));
 SCALES.forEach((s, i) => $('scale').insertAdjacentHTML('beforeend', `<option value="${i}">${s.name}</option>`));
 $('key').value = S.key;
@@ -1356,7 +1398,7 @@ $('labels').onchange = e => { S.labels = e.target.value; drawFret(); };
 $('view').onchange = e => { S.view = e.target.value; drawFret(); };
 $('sound').onchange = e => { S.sound = e.target.value; };
 $('pattern').onchange = e => { S.pattern = +e.target.value; buildSeq(); };
-$('degree').onchange = e => { S.degree = +e.target.value; buildSeq(); };
+$('degree').onchange = e => { S.degree = +e.target.value; clearView(); buildSeq(); };
 $('arpKind').onchange = e => { S.arpKind = e.target.value; drawTheory(); buildSeq(); if (S.padOn) startPad(); };
 $('bgdeg').onchange = e => { S.bgDeg = +e.target.value; syncExUi(); drawTheory(); drawFret(); if (S.padOn) startPad(); };
 $('sstr').onchange = e => { S.sstr = +e.target.value; buildSeq(); };
@@ -1377,17 +1419,18 @@ const store0set = (k, v) => { try { localStorage.setItem('pr.' + k, JSON.stringi
 S.fsys = store0('fsys', 'pos7'); $('fsys').value = S.fsys; // a digitação escolhida fica guardada neste navegador
 $('fsys').onchange = e => { S.fsys = e.target.value; store0set('fsys', S.fsys); syncPos(); buildSeq(); };
 $('exType').onchange = e => {
-  S.exType = e.target.value; syncExUi();
+  S.exType = e.target.value; clearView(); syncExUi();
   if (S.exType.startsWith('sweep')) { // sweep escolhido no menu sai da lição: tablatura, braço e base seguem os acordes do tom
     S.lesson = null; courseSel = null; pickItem = null; store.set('lesson', null);
     S.degree = -1; S.arpKind = 'modal'; $('arpKind').value = 'modal'; drawTheory(); $('degree').value = '-1';
+    const c0 = arpChords()[0]; if (c0 && c0.pos !== undefined) syncPos(c0.pos);
     if (!$('paneCourse').hidden) renderCourse();
     if (S.padOn) startPad();
   }
   if ((S.exType.startsWith('sweep') || S.exType.startsWith('tap')) && S.subdiv === 2) { S.subdiv = 3; $('subdiv').value = '3'; }
   buildSeq();
 };
-$('pos').oninput = e => { S.pos = posFrets()[+e.target.value]; showPos(); buildSeq(); };
+$('pos').oninput = e => { S.pos = posFrets()[+e.target.value]; showPos(); buildSeq(); followPos(); };
 $('padVol').oninput = () => { if (padBus) padBus.gain.setTargetAtTime(padLevel(), ctx.currentTime, 0.1); };
 function toggle(id, keyName, after) { $(id).onclick = () => { S[keyName] = !S[keyName]; $(id).classList.toggle('on', S[keyName]); if (after) after(); }; }
 toggle('clickOn', 'click');

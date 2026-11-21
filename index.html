@@ -543,13 +543,42 @@ function padChord(c, t) { // teclado contínuo: senos e triângulos, ataque e so
 // Exercícios
 // ---------------------------------------------------------------------------------------------
 let seq = [], seqIdx = 0;
+// escala tocável de verdade: começa na nota mais grave da posição na corda Mi grave e sobe corda a corda.
+// 7 e 8 notas (modos, menores, diminuta, bebop) e tons inteiros: 3 notas por corda; pentatônicas: 2 por corda;
+// blues: 2 por corda + a nota de passagem (meio tom) como 3ª. Nunca mais de 4 casas numa corda.
 function scaleNotes() {
-  const out = [];
-  TUNING.forEach((open, s) => { for (let f = S.pos; f <= Math.min(FRETS, S.pos + 5); f++) if (inScale(open + f)) out.push({ s, f, m: open + f }); });
-  out.sort((a, b) => a.m - b.m || a.s - b.s);
-  const uniq = [], seen = new Set();
-  for (const n of out) if (!seen.has(n.m)) { seen.add(n.m); uniq.push(n); }
-  return uniq;
+  const st = S.scale.steps, n = st.length;
+  const half = st.some((x, i) => mod12(st[(i + 1) % n] - x) === 1);
+  const k = n >= 7 || (n === 6 && !half) ? 3 : 2;
+  let f0 = null;
+  for (let f = S.pos; f <= Math.min(FRETS, S.pos + 4) && f0 === null; f++) if (inScale(TUNING[0] + f)) f0 = f;
+  if (f0 === null) return [];
+  const out = [{ s: 0, f: f0, m: TUNING[0] + f0 }];
+  let s = 0, first = f0, cnt = 1, m = TUNING[0] + f0;
+  for (;;) {
+    let m2 = m + 1; while (!inScale(m2)) m2++;
+    const f = m2 - TUNING[s];
+    // fica na corda se cabe na mão (até 4 casas), não passa do fim da posição (a não ser que a corda tenha só 1 nota)
+    // e ainda não tem notas demais; a nota de passagem do blues pode ser a 3ª
+    const fits = f - first <= 4 && f <= FRETS && (f <= S.pos + 5 || cnt < 2) && (cnt < k || (k === 2 && cnt === 2 && m2 - m === 1));
+    const nextFret = s < 5 ? m2 - TUNING[s + 1] : -1;
+    if (fits || (nextFret < 0 && f - first <= 4 && f <= FRETS)) { out.push({ s, f, m: m2 }); cnt++; } // a próxima corda não alcança: continua nesta
+    else {
+      if (++s > 5) break;
+      const g = m2 - TUNING[s]; if (g < 0 || g > FRETS) break;
+      out.push({ s, f: g, m: m2 }); first = g; cnt = 1;
+    }
+    m = m2;
+  }
+  // dedos: 3 por corda, pela forma da corda (1-2-4, 1-3-4, 1-2-3...); 2 por corda, pela posição da mão
+  if (k === 3) {
+    for (let sx = 0; sx < 6; sx++) {
+      const on = out.filter(x => x.s === sx); if (!on.length) continue;
+      const lo = on[0].f, span = on[on.length - 1].f - lo;
+      on.forEach(x => { const d = x.f - lo; x.fg = span <= 3 ? d + 1 : [1, 2, 2, 3, 4][d]; });
+    }
+  } else { const fg = fingering(out); out.forEach(x => { x.fg = fg(x.s, x.f); }); }
+  return out;
 }
 function grouped(list, g) {
   if (g === 1) return list.concat(list.slice(1, -1).reverse());
@@ -726,7 +755,8 @@ function fingering(notes) {
       // até 4 casas: um dedo por casa; 5 casas (com no máximo 4 casas usadas): indicador na mais grave, mínimo na mais aguda
       const used = [...new Set(fr)].sort((x, y) => x - y);
       const by = f => span <= 3 ? f - lo + 1 : used.length === 4 ? used.indexOf(f) + 1 : f === lo ? 1 : f === lo + 4 ? 4 : f - lo <= 2 ? 2 : 3;
-      group.forEach(n => { if (n.f > 0) map.set(n.s + ':' + n.f, by(n.f)); });
+      const firstPos = group.some(n => n.f === 0) && Math.max(...fr) <= 4; // com cordas soltas, 1ª posição: dedo = casa
+      group.forEach(n => { if (n.f > 0) map.set(n.s + ':' + n.f, firstPos ? n.f : by(n.f)); });
     }
     group.forEach(n => { if (n.f === 0) map.set(n.s + ':0', 0); });
     group = [];
@@ -752,10 +782,10 @@ function drawTab(arpOn) {
     const head = arpOn && n.d !== prevD ? names[n.d] : '';
     if (head && i > 0) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
     prevD = n.d;
-    const f = arpOn && fing[n.d] ? fing[n.d](n.s, n.f) : undefined;
+    const f = arpOn ? (fing[n.d] ? fing[n.d](n.s, n.f) : undefined) : n.fg;
     cols.push({ html: `<div class="tcol${S.exOn && i === activeIdx ? ' playing' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
   });
-  const lab = `<div class="tcol lab"><b></b>${['e', 'B', 'G', 'D', 'A', 'E'].map(x => `<span>${x}</span>`).join('')}<i>${arpOn ? 'fing.' : ''}</i></div>`;
+  const lab = `<div class="tcol lab"><b></b>${['e', 'B', 'G', 'D', 'A', 'E'].map(x => `<span>${x}</span>`).join('')}<i>fing.</i></div>`;
   const per = Math.max(8, Math.floor(((el.clientWidth || 1100) - 44) / 22));
   const rows = []; let row = [];
   cols.forEach((c, i) => {
@@ -779,6 +809,7 @@ function drawFret() {
   const curKey = active && active.d !== undefined && S.exOn ? active.d : (chords[0] ? chords[0].key : null);
   const curArp = chords.find(c => c.key === curKey) || null;
   const inSeq = new Set(arpOn ? seq.filter(n => n.d === curKey).map(n => n.s + ':' + n.f) : []);
+  const inRun = new Set(arpOn ? [] : seq.map(n => n.s + ':' + n.f)), runFinger = arpOn ? null : fingering(seq);
   const rel = relIv(), view = S.view, bg = bgChords();
   // acorde de referência da visão "background chord": o que toca no fundo, ou o arpejo atual, ou o primeiro da base
   const ref = S.padOn && padIdx !== null ? chordInfo(bg[padIdx % bg.length]) : curArp || chordInfo(bg[0]);
@@ -816,13 +847,14 @@ function drawFret() {
       const pc = mod12(m), owner = outside ? [curArp, ref].find(c => c && c.pcs.includes(pc)) : null;
       let label = S.labels === 'deg' ? (outside ? DEG[iv] : deg(iv)) : owner ? spell(pc, owner.roles[owner.pcs.indexOf(pc)]) : noteAt(pc);
       let hide = false, altered = false;
-      if (view === 'tonics') hide = !isRoot && !isRel && !act && !arp; // as notas do arpejo nunca somem
-      else if (view === 'box') hide = !inBox(f) && !act && !arp; // a caixa mostra só a posição
+      const run = inRun.has(s + ':' + f);
+      if (view === 'tonics') hide = !isRoot && !isRel && !act && !arp && !run; // as notas do arpejo nunca somem
+      else if (view === 'box') hide = !inBox(f) && !act && !arp && !run; // a caixa mostra só a posição
       else if (view === 'chord') { const ci = ref.pcs.indexOf(mod12(m)); if (ci < 0) dim = !act; else label = ref.roles[ci]; }
       else if (view === 'parallel') { altered = !outside && !MAJOR.includes(iv); dim = dim || (!altered && !isRoot); }
       else if (view === 'modes' && parentPc !== null) { const k = MAJOR.indexOf(mod12(m - parentPc)); if (k >= 0) label = MODE_SHORT[k]; }
       if (hide) continue;
-      const faded = !inBox(f) && !act && !arp; // fora da posição escolhida: baixa opacidade em qualquer visão
+      const faded = !inBox(f) && !act && !arp && !run; // fora da posição escolhida: baixa opacidade em qualquer visão
       const x = fx(f), y = sy(s), r = act ? 14 : 11.5;
       let shape;
       if (isRoot) shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="${ACC}"/>`;
@@ -832,7 +864,7 @@ function drawFret() {
       else shape = `<circle cx="${x}" cy="${y}" r="${r}" fill="${arp ? 'rgba(224,176,74,.25)' : '#1d2024'}" stroke="${isColor ? VIO : ACC}" stroke-width="${arp ? 2.4 : 1.6}"/>`;
       const txt = isRoot || isRel ? '#1a1406' : '#e8e9eb';
       o += `<g opacity="${faded ? 0.16 : dim ? 0.32 : 1}">${act ? `<circle cx="${x}" cy="${y}" r="${r + 4}" fill="none" stroke="#ffffff" stroke-width="2"/>` : ''}${shape}
-        <text x="${x}" y="${y + (label.length > 2 ? 3.4 : 4.2)}" font-size="${label.length > 2 ? 8.5 : 11}" font-weight="700" text-anchor="middle" fill="${txt}" font-family="${FONT}">${label}</text>${arp ? fingerBadge(x, y, finger(s, f), FONT) : ''}</g>`;
+        <text x="${x}" y="${y + (label.length > 2 ? 3.4 : 4.2)}" font-size="${label.length > 2 ? 8.5 : 11}" font-weight="700" text-anchor="middle" fill="${txt}" font-family="${FONT}">${label}</text>${arp ? fingerBadge(x, y, finger(s, f), FONT) : run && S.view !== 'tonics' ? fingerBadge(x, y, runFinger(s, f), FONT) : ''}</g>`;
     }
   });
   if (view === 'parallel') TUNING.forEach((open, s) => {

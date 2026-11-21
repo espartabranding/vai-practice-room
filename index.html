@@ -110,8 +110,8 @@ details[open] summary { margin-bottom: 8px; }
 .tcol.lab span { background: none; color: var(--muted); padding-right: 6px; text-align: right; }
 .tcol.bar { min-width: 0; width: 13px; }
 .tcol.bar span { background: linear-gradient(#5a616b, #5a616b) center / 1.5px 100% no-repeat; }
-.tcol.now span em { background: var(--accent); color: #1a1406; border-radius: 3px; }
-.tcol.now i { color: var(--accent); }
+.tcol.playing span em { background: var(--accent); color: #1a1406; border-radius: 3px; }
+.tcol.playing i { color: var(--accent); }
 #tabBox summary { margin: 2px 0 4px; }
 .legend i.o { border: 1.5px dashed #c9ccd1; }
 .bgnow small { color: var(--muted); font-size: 12px; }
@@ -750,7 +750,7 @@ function drawTab(arpOn) {
     if (head && i > 0) cols.push({ bar: true, html: `<div class="tcol bar"><b></b>${STR.map(() => '<span></span>').join('')}<i></i></div>` });
     prevD = n.d;
     const f = arpOn && fing[n.d] ? fing[n.d](n.s, n.f) : undefined;
-    cols.push({ html: `<div class="tcol${S.exOn && active === n ? ' now' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
+    cols.push({ html: `<div class="tcol${S.exOn && active === n ? ' playing' : ''}"><b>${head || ''}</b>${STR.map(s => cell(n, s)).join('')}<i>${f === undefined ? '' : f}</i></div>` });
   });
   const lab = `<div class="tcol lab"><b></b>${['e', 'B', 'G', 'D', 'A', 'E'].map(x => `<span>${x}</span>`).join('')}<i>${arpOn ? 'fing.' : ''}</i></div>`;
   const per = Math.max(8, Math.floor(((el.clientWidth || 1100) - 44) / 22));
@@ -796,7 +796,9 @@ function drawFret() {
   const finger = fingering(curNotes);
   if (curNotes.length > 1) {
     const peak = curNotes.reduce((k, n, i) => n.m > curNotes[k].m ? i : k, 0), path = S.exType.startsWith('tap') ? [...new Map(curNotes.map(n => [n.s + ':' + n.f, n])).values()].sort((x, y) => x.m - y.m) : curNotes.slice(0, peak + 1);
-    o += `<polyline points="${path.map(n => fx(n.f) + ',' + sy(n.s)).join(' ')}" fill="none" stroke="${'#e0b04a'}" stroke-width="3" stroke-opacity=".55" stroke-linejoin="round" stroke-linecap="round"/>`;
+    // no tapping pulando cordas, uma linha por corda (indicador, outro dedo, batida); nos demais, uma linha seguindo o desenho
+    const lines = S.exType === 'tapx' ? [...new Set(path.map(n => n.s))].map(st => path.filter(n => n.s === st)) : [path];
+    lines.forEach(l => { o += `<polyline points="${l.map(n => fx(n.f) + ',' + sy(n.s)).join(' ')}" fill="none" stroke="#e0b04a" stroke-width="3" stroke-opacity=".55" stroke-linejoin="round" stroke-linecap="round"/>`; });
     const a = path[0];
     o += `<circle cx="${fx(a.f)}" cy="${sy(a.s)}" r="17" fill="none" stroke="#e0b04a" stroke-width="1.2" stroke-dasharray="2 3"/>`;
   }

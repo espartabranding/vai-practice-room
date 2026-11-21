@@ -16,7 +16,8 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; }
-body { height: 100vh; height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr) 270px; grid-template-rows: auto minmax(0, 1fr) auto;
+/* a grade fica num contêiner próprio: elementos que extensões do navegador injetam na página não mexem no layout */
+#app { height: 100vh; height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr) 270px; grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "brand brand" "theory metro" "fret fret"; gap: 12px; padding: 12px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
 .glass { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
 h2 { font-size: 11px; letter-spacing: 1.5px; color: var(--muted); margin: 0 0 10px; font-weight: 600; text-transform: uppercase; }
@@ -161,7 +162,7 @@ details[open] summary { margin-bottom: 8px; }
 #theoryBtn { display: none; }
 @media (max-width: 900px) {
   .course { grid-template-columns: minmax(0, 1fr); }
-  body { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "brand" "theory" "fret" "metro"; } /* celular: curso (se aberto) e braço primeiro, metrônomo embaixo */
+  #app { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "brand" "theory" "fret" "metro"; } /* celular: curso (se aberto) e braço primeiro, metrônomo embaixo */
   #theory { display: none; }
   #theory.open { display: block; }
   #theoryBody { columns: 1; }
@@ -171,6 +172,7 @@ details[open] summary { margin-bottom: 8px; }
 </style>
 </head>
 <body>
+<div id="app">
 <div id="brand"><b>Practice Room</b> <button id="theoryBtn">Theory &amp; Course</button></div>
 
 <div id="theory" class="glass">
@@ -251,6 +253,7 @@ details[open] summary { margin-bottom: 8px; }
     <span class="keys">Click any fret to hear it · Space metronome · Enter exercise · ↑ ↓ tempo</span>
   </div>
 </div>
+</div><!-- #app -->
 
 <script>
 // ---------------------------------------------------------------------------------------------

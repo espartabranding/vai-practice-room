@@ -407,7 +407,7 @@ const QUAL = {
   m9: { ivs: [0, 3, 7, 10, 2], lab: ['R', 'b3', '5', 'b7', '9'] },
   maj9: { ivs: [0, 4, 7, 11, 2], lab: ['R', '3', '5', '7', '9'] },
   '7b9': { ivs: [0, 4, 7, 10, 1], lab: ['R', '3', '5', 'b7', 'b9'] },
-  '7#9': { ivs: [0, 4, 7, 10, 3], lab: ['R', '3', '5', 'b7', '#9'] },
+  '7#9': { ivs: [0, 4, 10, 3], lab: ['R', '3', 'b7', '#9'] }, // sem a 5ª justa, que não existe na escala alterada
   '7#5': { ivs: [0, 4, 8, 10], lab: ['R', '3', '#5', 'b7'] },
   'maj7#5': { ivs: [0, 4, 8, 11], lab: ['R', '3', '#5', '7'] },
   '7#11': { ivs: [0, 4, 7, 10, 6], lab: ['R', '3', '5', 'b7', '#11'] },
@@ -426,9 +426,25 @@ const relIv = () => S.scale.rel ? S.scale.rel.iv : null;
 // grafia: graus com b viram bemol (blue note de A = Eb, b7 de C7 = Bb); tons de F, Bb, Eb, Ab e Db usam bemóis
 const FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const FLAT_KEYS = new Set([1, 3, 5, 8, 10]);
-const keyName = k => (FLAT_KEYS.has(k) ? FLATS : NOTES)[k];
+// escala de 7 notas: uma letra por grau (F# maior tem E#, Eb menor tem Cb). Entre os dois nomes da tônica, fica o de menos
+// acidentes. A Altered segue o nome da função (b9, #9, 3, #11, b13), como se escreve no acorde
+const LETTERS = 'CDEFGAB', LETTER_PC = [0, 2, 4, 5, 7, 9, 11], spellCache = new Map();
+function spelledScale() {
+  const sc = S.scale, st = sc.steps.filter(x => x !== sc.passing);
+  if (st.length !== 7 || sc.name === 'Altered') return null;
+  const id = S.key + '|' + sc.name; if (spellCache.has(id)) return spellCache.get(id);
+  let best = null;
+  for (const name of new Set([(FLAT_KEYS.has(S.key) ? FLATS : NOTES)[S.key], NOTES[S.key], FLATS[S.key]])) {
+    const li = LETTERS.indexOf(name[0]);
+    const names = st.map((iv, i) => { const L = (li + i) % 7, diff = mod12(S.key + iv - LETTER_PC[L] + 6) - 6; return LETTERS[L] + (diff > 0 ? '#'.repeat(diff) : 'b'.repeat(-diff)); });
+    const score = names.reduce((t, n) => t + (n.length - 1) ** 2, 0);
+    if (!best || score < best.score) best = { score, names, map: new Map(st.map((iv, i) => [mod12(S.key + iv), names[i]])) };
+  }
+  spellCache.set(id, best); return best;
+}
+const keyName = k => { const m = k === S.key ? spelledScale() : null; return m ? m.names[0] : (FLAT_KEYS.has(k) ? FLATS : NOTES)[k]; };
 function spell(pc, lab, key = S.key) { return lab && lab[0] === 'b' ? FLATS[pc] : lab && lab[0] === '#' ? NOTES[pc] : (FLAT_KEYS.has(key) ? FLATS : NOTES)[pc]; }
-function noteAt(pc) { const iv = mod12(pc - S.key); return spell(pc, S.scale.steps.includes(iv) ? deg(iv) : DEG[iv]); }
+function noteAt(pc) { const sp = spelledScale(); if (sp && sp.map.has(pc)) return sp.map.get(pc); const iv = mod12(pc - S.key); return spell(pc, S.scale.steps.includes(iv) ? deg(iv) : DEG[iv]); }
 
 // ---------------------------------------------------------------------------------------------
 // Áudio: harpa de ataque suave, sino macio no metrônomo, teclado de fundo aveludado, reverb longo
@@ -893,6 +909,11 @@ function slideSweep(pcs, strings, rootStart = false) {
       if (wins) { best = all; bestS = sc; }
     }
   }
+  // digitação do deslize: em cada corda o indicador pega a primeira nota e o mínimo a última; a mão só anda na troca de corda
+  if (best) for (const st of [a, b]) {
+    const l = best.filter(x => x.s === st), f0 = l[0].f, w = l[l.length - 1].f - f0;
+    l.forEach((x, i) => { const d = x.f - f0; x.fg = x.f === 0 ? 0 : i === 0 ? 1 : i === l.length - 1 ? (d === 1 ? 2 : d === 2 ? 3 : 4) : w <= 3 ? d + 1 : d <= 2 ? 2 : 3; });
+  }
   return best;
 }
 function compactWith(pcs, must, strings, rootStart = false) {
@@ -915,7 +936,7 @@ function compactWith(pcs, must, strings, rootStart = false) {
       if (!tones.has(mod12(m)) || (last && m <= last.m)) continue;
       if (rootStart && !last && (mod12(m) !== pcs[0] || f < S.pos || f > S.pos + 5)) continue;
       const fr = list.map(x => x.f).concat(f).filter(x => x > 0); // corda solta não usa dedo
-      if (fr.length && Math.max(...fr) - Math.min(...fr) > 4) continue;
+      if (fr.length && (Math.max(...fr) - Math.min(...fr) > 4 || new Set(fr).size > 4)) continue; // quatro dedos: no máximo quatro casas diferentes
       walk(si, onStr + 1, list.concat({ s, f, m }));
     }
   };
@@ -942,7 +963,7 @@ function sweepFrom(start, tones, strings) {
   const top = strings[strings.length - 1];
   for (let k = 0; k < 2; k++) {
     let nx = null;
-    for (let f = prev.f + 1; f <= FRETS && !nx; f++) { const m = TUNING[top] + f; if (isTone(m) && span(up, f) <= 4) nx = { s: top, f, m }; }
+    for (let f = prev.f + 1; f <= FRETS && !nx; f++) { const m = TUNING[top] + f; if (isTone(m) && span(up, f) <= 4 && new Set(up.map(x => x.f).concat(f).filter(x => x > 0)).size <= 4) nx = { s: top, f, m }; } // quatro dedos, quatro casas
     if (!nx) break; up.push(nx); prev = nx;
   }
   return up;
@@ -1263,8 +1284,8 @@ const chordName = d => chordLabel(degChord(d));
 function modeMap() { // as 7 notas do tom de origem, com o modo que começa em cada uma
   const sc = S.scale; if (sc.mode === undefined) return '';
   const parent = mod12(S.key - MAJOR[sc.mode]);
-  const chips = MAJOR.map((iv, k) => `<button data-k="${k}" class="${k === sc.mode ? 'cur' : ''}${k === 0 ? ' parent' : ''}">${(FLAT_KEYS.has(parent) ? FLATS : NOTES)[(parent + iv) % 12]}<small>${MODE_SHORT[k]}</small></button>`).join('');
-  return `<p class="maphint">Same notes as <b>${keyName(parent)} major</b>. Starting on <b>${keyName(S.key)}</b> makes it ${MODE_NAMES[sc.mode]}. Tap a note to hear the same notes as another mode.</p><div class="modemap">${chips}</div>`;
+  const chips = MAJOR.map((iv, k) => `<button data-k="${k}" class="${k === sc.mode ? 'cur' : ''}${k === 0 ? ' parent' : ''}">${noteAt((parent + iv) % 12)}<small>${MODE_SHORT[k]}</small></button>`).join('');
+  return `<p class="maphint">Same notes as <b>${noteAt(parent)} major</b>. Starting on <b>${keyName(S.key)}</b> makes it ${MODE_NAMES[sc.mode]}. Tap a note to hear the same notes as another mode.</p><div class="modemap">${chips}</div>`;
 }
 function vsMajor() { // o que muda em relação à escala maior com a mesma tônica
   const sc = S.scale, extra = sc.steps.filter(iv => !MAJOR.includes(iv)), missing = MAJOR.filter(iv => !sc.steps.includes(iv));
@@ -1727,7 +1748,7 @@ const PLAYERS = {
         items: [
           { t: 'Blues scale in open E', key: 'E', scale: 'Blues scale', pos: 0, ex: 'scale', view: 'box', bpm: 70, subdiv: 3, prog: B12, note: "Open strings plus the Bb blue note: the sound of the SRV shuffles." },
           { t: '"Pride and Joy" style: major and minor', key: 'E', scale: 'Major blues', pos: 0, ex: 'scale', view: 'box', bpm: 70, subdiv: 3, prog: B12, note: "The b3 to 3 move (G to G#) between the open strings." },
-          { t: 'Albert King box in E', key: 'E', scale: 'Minor pentatonic', pos: 12, ex: 'scale', view: 'box', bpm: 60, prog: B12, note: "SRV took Albert King's box (box 2) and its bends; here frets 14 to 17." },
+          { t: 'Albert King box in E', key: 'E', scale: 'Minor pentatonic', pos: 3, ex: 'scale', view: 'box', bpm: 60, prog: B12, note: "SRV took Albert King's box (box 2) and its bends. In E it sits at frets 2 to 5, and again an octave up at frets 14 to 17." },
           { t: 'Dominant 7 arpeggios in E', key: 'E', scale: 'Minor pentatonic', pos: 0, ex: 'arp', src: -3, view: 'chord', bpm: 60, subdiv: 3, prog: B12, note: "E7, A7 and B7 in open position: target G#, C# and D# as each chord arrives." },
         ] },
       { id: 'bonamassa', name: 'Joe Bonamassa', from: 'Sloe Gin · The Ballad of John Henry', style: "Modern blues rock: fast pentatonic sequences, Dorian over minor grooves, natural minor in the slow tunes.",
@@ -1775,7 +1796,7 @@ const PLAYERS = {
         ] },
       { id: 'kotzen', name: 'Richie Kotzen', from: 'Poison · Mr. Big · solo albums', style: "Hard rock and blues attitude with very fast, smooth legato. Kotzen thinks in pentatonic boxes more than scales, joins two boxes into three-notes-per-string shapes, uses lots of slides, and plays fingerstyle today.",
         items: [
-          { t: 'Pentatonic legato across two boxes', key: 'A', scale: 'Minor pentatonic', pos: 5, ex: 'scale', pattern: 4, view: 'box', bpm: 50, subdiv: 4, prog: [[0, 'm7', 4]], note: "Frets 5 to 10 join box 1 and box 2: three notes on some strings, so hammer-ons and pull-offs flow." },
+          { t: 'Pentatonic legato across two boxes', key: 'A', scale: 'Minor pentatonic', pos: 5, ex: 'scale', pattern: 4, view: 'box', bpm: 50, subdiv: 4, prog: [[0, 'm7', 4]], note: "This is box 1 (frets 5 to 8). Press → for box 2 (frets 7 to 10): joining them puts three notes on some strings, so hammer-ons and pull-offs flow." },
           { t: 'Arpeggios through A minor changes', key: 'A', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, 'm', 1], [8, '', 1], [3, '', 1], [10, '', 1]], note: "Am–F–C–G as arpeggios in one position: the changes are spelled with triads drawn from the scale shape." },
           { t: 'Dorian funk rock', key: 'A', scale: 'Dorian', pos: 5, ex: 'scale', pattern: 3, bpm: 60, subdiv: 4, prog: [[0, 'm7', 2], [5, '7', 2]], note: "Am7 to D7: the F# turns the pentatonic licks soulful." },
           { t: 'Sweep arpeggios', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 1], [8, '', 1], [5, 'm', 1], [7, '', 1]], note: "Am–F–Dm–E sweeps, the shred side of the early Kotzen records." },
@@ -1799,7 +1820,7 @@ const PLAYERS = {
           { t: 'Serrana style: 6-string sweeps', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'sweep6', src: -3, view: 'chord', bpm: 35, subdiv: 3, prog: [[0, 'm', 1], [5, 'm', 1], [7, '', 1], [0, 'm', 1]], note: "Six-string sweeps through Am, Dm and E, the kind of wide arpeggio Serrana is famous for. The tune's actual key and changes are not reproduced here." },
           { t: 'A minor in different positions', key: 'A', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 4]], note: "Becker moves the same chord through several five-string shapes. This loads the shape that starts on the 5th (E, 7th fret of the A string); press → until the position shows fret 12 for the shape that starts on the root (A, 12th fret)." },
           { t: 'E minor sweeps and diminished 7', key: 'E', scale: 'Harmonic minor', pos: 12, ex: 'sweep5', src: -3, view: 'chord', bpm: 35, subdiv: 3, prog: [[0, 'm', 2], [11, 'dim7', 2]], note: "High E minor sweeps, then D#dim7, the VII chord of E harmonic minor, pulling back to Em." },
-          { t: 'Major through inversions, then the relative minor', key: 'A', scale: 'Ionian (Major)', pos: 9, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, '', 2], [9, 'm', 2]], note: "A major arpeggios moving up the neck, then F#m, the relative minor: the idea Becker uses in Altitudes." },
+          { t: 'Major through inversions, then the relative minor', key: 'A', scale: 'Ionian (Major)', pos: 9, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, '', 2], [9, 'm', 2]], note: "A major arpeggios moving up the neck, then F#m, the relative minor." },
           { t: 'Phrygian dominant runs', key: 'E', scale: 'Phrygian dominant', pos: 5, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, '7', 2], [5, 'm', 2]], note: "E Phrygian dominant over E7 to Am: the neoclassical runs between his arpeggios." },
         ] },
       { id: 'vai', name: 'Steve Vai', from: 'Passion and Warfare · For the Love of God', style: "Lydian is the Vai signature mode: the raised 4th over a major chord, with whammy bar and legato.",
@@ -1841,7 +1862,7 @@ const PLAYERS = {
         items: [
           { t: 'Dorian over a minor vamp', key: 'D', scale: 'Dorian', pos: 5, ex: 'scale', bpm: 60, prog: [[0, 'm7', 4]], note: "Long Dm7 vamps (\"Impressions\" style): the B natural keeps it hip." },
           { t: 'Minor 9 arpeggios', key: 'D', scale: 'Dorian', pos: 5, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[0, 'm9', 4]], note: "D F A C E: the 9 on top is the warm Wes minor sound." },
-          { t: 'Minor blues in G', key: 'G', scale: 'Dorian', pos: 2, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: MB12, note: "\"Four on Six\" territory: Gm7, Cm7, Eb7 and D7 arpeggios." },
+          { t: 'Minor blues in G', key: 'G', scale: 'Dorian', pos: 2, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: MB12, note: "Gm7, Cm7, Eb7 and D7 arpeggios in G minor, the key of \"Four on Six\"." },
         ] },
       { id: 'joepass', name: 'Joe Pass', from: 'Virtuoso · Ella & Joe', style: "Bebop lines over ii–V–I changes, chromatic approach notes and half steps, diminished sounds on dominants.",
         items: [
@@ -1852,11 +1873,11 @@ const PLAYERS = {
       { id: 'martino', name: 'Pat Martino', from: 'El Hombre · Sunny', style: "Endless eighth-note lines and the \"minor conversion\": think of a dominant chord as the minor 7 chord a fifth above it.",
         items: [
           { t: 'Minor conversion: Dm7 over G7', key: 'G', scale: 'Mixolydian', pos: 2, ex: 'arp', src: -3, view: 'chord', bpm: 60, prog: [[7, 'm7', 2], [0, '7', 2]], note: "Dm7 (D F A C) over G7 gives the 5, b7, 9 and 11: play the same minor arpeggio over both chords." },
-          { t: 'Dorian eighth-note lines', key: 'D', scale: 'Dorian', pos: 5, ex: 'scale', pattern: 4, bpm: 60, prog: [[0, 'm7', 2], [7, '7', 2]], note: "Dm7 to G7, one Dorian line over both (the same seven notes)." },
+          { t: 'Dorian eighth-note lines', key: 'D', scale: 'Dorian', pos: 5, ex: 'scale', pattern: 4, bpm: 60, prog: [[0, 'm7', 2], [5, '7', 2]], note: "Dm7 to G7, one Dorian line over both (the same seven notes)." },
         ] },
       { id: 'benson', name: 'George Benson', from: "Breezin' · This Masquerade", style: "Bebop speed with soul: minor pentatonic over minor 7 grooves, chromatic runs and octaves.",
         items: [
-          { t: 'Minor pentatonic over m7', key: 'D', scale: 'Minor pentatonic', pos: 5, ex: 'scale', pattern: 3, bpm: 60, subdiv: 4, prog: [[0, 'm7', 2], [7, '9', 2]], note: "Jazz-funk vamps: the pentatonic played fast and clean, with the 9 of G9 in the mix." },
+          { t: 'Minor pentatonic over m7', key: 'D', scale: 'Minor pentatonic', pos: 5, ex: 'scale', pattern: 3, bpm: 60, subdiv: 4, prog: [[0, 'm7', 2], [5, '9', 2]], note: "Jazz-funk vamps: the pentatonic played fast and clean, with the 9 of G9 in the mix." },
           { t: 'Diminished over 7b9', key: 'G', scale: 'Diminished (half-whole)', pos: 2, ex: 'scale', pattern: 3, bpm: 50, prog: [[0, '7b9', 2], [5, 'maj7', 2]], note: "Slick Benson-style dominant lines: symmetric groups of three." },
         ] },
     ] },

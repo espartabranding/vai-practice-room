@@ -90,6 +90,7 @@ details[open] summary { margin-bottom: 8px; }
   padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   background: var(--panel); border-top: 1px solid var(--line); }
 #fretbar .row.ctl { margin-bottom: 8px; }
+#fretbar .row.ctl select { max-width: 100%; } /* menus com nomes longos não passam da largura da tela */
 .fhead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
 .fhead h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: .3px; }
 .fhead h1 b { color: var(--accent); }

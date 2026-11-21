@@ -228,7 +228,7 @@ details[open] summary { margin-bottom: 8px; }
     </select>
     <select id="pattern" aria-label="Pattern"><option value="1">Straight</option><option value="3">Groups of 3</option><option value="4">Groups of 4</option></select>
     <select id="degree" aria-label="Arpeggio degree" hidden></select>
-    <label class="k" for="pos">Position</label><input type="range" id="pos" min="0" max="12" value="5"><span id="posShow" class="k">fret 5</span>
+    <label class="k" for="pos">Position</label><input type="range" id="pos" min="0" max="12" value="5" step="1"><span id="posShow" class="k"></span>
     <select id="view" aria-label="Fretboard view">
       <option value="full">View: whole scale</option>
       <option value="tonics">View: tonics only</option>
@@ -250,7 +250,7 @@ details[open] summary { margin-bottom: 8px; }
     <span><i class="c"></i>Color note</span>
     <span><i class="o"></i>Chord tone outside the scale</span>
     <span id="viewHint"></span>
-    <span class="keys">Click any fret to hear it · Space metronome · Enter exercise · ↑ ↓ tempo</span>
+    <span class="keys">Click any fret to hear it · Space metronome · Enter exercise · ↑ ↓ tempo · ← → position</span>
   </div>
 </div>
 </div><!-- #app -->
@@ -322,12 +322,12 @@ const SCALES = [
     mood: 'Sweet, country, open.',
     use: 'Over major chords and happy progressions.',
     tip: 'Slide into the 3rd from the 2nd: that move is the sound of the scale.' },
-  { name: 'Blues scale', arp: { suf: 'm7', ivs: [0, 3, 7, 10] }, steps: [0, 3, 5, 6, 7, 10], color: 6, vamp: null, names: { 6: 'b5' }, bg: [[0, '7', 2]],
+  { name: 'Blues scale', arp: { suf: 'm7', ivs: [0, 3, 7, 10] }, steps: [0, 3, 5, 6, 7, 10], passing: 6, color: 6, vamp: null, names: { 6: 'b5' }, bg: [[0, '7', 2]],
     rel: { iv: 3, label: 'Relative major blues', how: 'shares its notes with', rname: 'major blues' },
     mood: 'Gritty and vocal: the minor pentatonic plus one blue note.',
     use: 'Over all three chords of a blues, and over minor and dominant rock.',
     tip: 'The b5 is a passing note: slide through it between the 4 and the 5, never park on it.' },
-  { name: 'Major blues', arp: { suf: '6', ivs: [0, 4, 7, 9] }, steps: [0, 2, 3, 4, 7, 9], color: 3, vamp: null, bg: [[0, '6', 2]],
+  { name: 'Major blues', arp: { suf: '6', ivs: [0, 4, 7, 9] }, steps: [0, 2, 3, 4, 7, 9], passing: 3, color: 3, vamp: null, bg: [[0, '6', 2]],
     rel: { iv: 9, label: 'Relative minor blues', how: 'shares its notes with', rname: 'blues scale' },
     mood: 'Sweet with a bluesy bite: the major pentatonic plus the b3.',
     use: 'Over major blues, country and southern rock.',
@@ -340,7 +340,7 @@ const SCALES = [
     mood: 'Tense and symmetrical, perfect for angular lines.',
     use: 'Over dominant 7b9 chords.',
     tip: 'The pattern repeats every three frets, so the tonic is felt from the chord underneath, not from the scale.' },
-  { name: 'Bebop dominant', arp: { suf: '7', ivs: [0, 4, 7, 10] }, steps: [0, 2, 4, 5, 7, 9, 10, 11], color: 11, vamp: null, bg: [[0, '7', 2]],
+  { name: 'Bebop dominant', arp: { suf: '7', ivs: [0, 4, 7, 10] }, steps: [0, 2, 4, 5, 7, 9, 10, 11], passing: 11, color: 11, vamp: null, bg: [[0, '7', 2]],
     rel: { iv: 5, label: 'Parent major', how: 'is the Mixolydian of', rname: 'major plus a passing 7' },
     mood: 'Swinging and chromatic.',
     use: 'Over dominant 7th chords, in eighth-note lines.',
@@ -572,24 +572,34 @@ function orderFingers(notes) {
   }
   return notes;
 }
-// o indicador fica na casa escolhida ou numa vizinha: vale a forma que menos estica a mão (e que vai do Mi ao mi)
-function positionScale() {
-  if (S.pos === 0) return positionAt(1, true);
-  let best = null;
-  for (const h of [S.pos, S.pos - 1, S.pos + 1]) {
-    if (h < 1 || h + 4 > FRETS) continue;
-    const run = positionAt(h, false);
-    const full = run.some(x => x.s === 0) && run.some(x => x.s === 5);
-    const score = (full ? 0 : 100) + run.filter(x => x.f < h || x.f > h + 3).length * 3 + Math.abs(h - S.pos);
-    if (!best || score < best.score) best = { run, score };
+// cada posição começa numa nota da escala na corda Mi grave. A mão fica com o indicador nessa nota ou uma casa antes
+// (médio na nota), o que esticar menos, mas nunca no mesmo lugar da posição anterior: cada posição é um degrau acima.
+function stretches(run, h) { return run.filter(x => x.f > 0 && (x.f < h || x.f > h + 3)).length; }
+function handFor(f0) {
+  let prevH = 0, h = Math.max(1, f0);
+  for (const f of posFrets()) {
+    if (f === 0) { prevH = 0; if (f === f0) return 0; continue; }
+    let best = null;
+    for (const c of [f - 1, f]) {
+      if (c < 1 || c === prevH || c + 3 > FRETS) continue;
+      const run = positionAt(c, false, f), full = run.some(x => x.s === 0) && run.some(x => x.s === 5);
+      const score = (full ? 0 : 100) + stretches(run, c) * 3 + (c === f ? 0 : 1);
+      if (!best || score < best.score) best = { c, score };
+    }
+    prevH = best ? best.c : f;
+    if (f === f0) { h = prevH; break; }
   }
-  return best ? best.run : positionAt(Math.max(1, S.pos), false);
+  return h;
 }
-function positionAt(h, open) { // h: casa do indicador; open: posição aberta (cordas soltas entram)
+function positionScale() {
+  const h = handFor(S.pos);
+  return h === 0 ? positionAt(1, true, 0) : positionAt(h, false, S.pos);
+}
+function positionAt(h, open, f0) { // h: casa do indicador; open: posição aberta (cordas soltas entram); f0: 1ª nota, na corda Mi grave
   const main = f => (f >= h && f <= h + 3) || (open && f === 0), stretch = f => !open && (f === h + 4 || f === h - 1); // na posição aberta a mão já cobre as casas 1 a 4
   const place = (m, s) => { const f = m - TUNING[s]; return f >= 0 && f <= FRETS ? f : null; };
   let start = null;
-  for (const ok of [main, stretch]) for (let f = 0; f <= FRETS && !start; f++) if (ok(f) && inScale(TUNING[0] + f)) start = { s: 0, f, m: TUNING[0] + f };
+  if (inScale(TUNING[0] + f0) && (main(f0) || stretch(f0))) start = { s: 0, f: f0, m: TUNING[0] + f0 };
   if (!start) return [];
   const out = [start]; let cur = start;
   for (;;) {
@@ -631,7 +641,9 @@ function scaleNotes() {
     }
     m = m2;
   }
-  const fg = fingering(out); out.forEach(x => { x.fg = fg(x.s, x.f); }); // box: dedos pela posição da mão
+  // box: um dedo por casa a partir da casa mais grave do box (indicador); com cordas soltas, 1ª posição (dedo = casa)
+  const fr = out.filter(x => x.f > 0).map(x => x.f), h = fr.length ? Math.min(...fr) : 1, firstPos = out.some(x => x.f === 0) && Math.max(...fr) <= 4;
+  out.forEach(x => { x.fg = x.f === 0 ? 0 : firstPos ? x.f : Math.max(1, Math.min(4, x.f - h + 1)); });
   return orderFingers(out);
 }
 function grouped(list, g) {
@@ -1016,7 +1028,27 @@ function drawTheory() {
 // ---------------------------------------------------------------------------------------------
 // faixa de 0 a 100 BPM (pedido do usuário)
 function setBpm(v) { S.bpm = Math.max(0, Math.min(100, Math.round(v))); $('bpm').value = S.bpm; $('bpmShow').textContent = S.bpm; }
-function refreshMusic() { drawTheory(); buildSeq(); if (S.padOn) startPad(); }
+// posições: cada uma começa num grau da escala na corda Mi grave (a nota de passagem da blues e da bebop não abre posição).
+// O controle anda de posição em posição, subindo o braço grau a grau.
+function posFrets() {
+  const set = S.scale.steps.filter(iv => iv !== S.scale.passing), out = [];
+  for (let f = 0; f <= 13; f++) if (set.includes(mod12(TUNING[0] + f - S.key))) out.push(f);
+  return out;
+}
+function syncPos(target = S.pos) {
+  const fr = posFrets();
+  let i = 0; fr.forEach((f, k) => { if (Math.abs(f - target) < Math.abs(fr[i] - target)) i = k; });
+  S.pos = fr[i]; $('pos').max = fr.length - 1; $('pos').value = i;
+  showPos();
+}
+function showPos() {
+  const set = S.scale.steps.filter(iv => iv !== S.scale.passing), iv = mod12(TUNING[0] + S.pos - S.key);
+  // nos 7 modos, a posição que começa no grau k tem o desenho do modo que começa ali (ex.: do 2º grau da maior = dórico)
+  const shape = S.scale.mode !== undefined ? ` · ${MODE_NAMES[(S.scale.mode + set.indexOf(iv)) % 7]} shape` : '';
+  $('posShow').textContent = `Pos ${set.indexOf(iv) + 1}/${set.length} · from ${deg(iv)}${shape} · fret ${S.pos}`;
+}
+function stepPos(d) { const fr = posFrets(), i = Math.max(0, Math.min(fr.length - 1, fr.indexOf(S.pos) + d)); S.pos = fr[i]; $('pos').value = i; showPos(); buildSeq(); }
+function refreshMusic() { syncPos(); drawTheory(); buildSeq(); if (S.padOn) startPad(); }
 NOTES.forEach((n, i) => $('key').insertAdjacentHTML('beforeend', `<option value="${i}">${keyName(i)}</option>`));
 SCALES.forEach((s, i) => $('scale').insertAdjacentHTML('beforeend', `<option value="${i}">${s.name}</option>`));
 $('key').value = S.key;
@@ -1038,7 +1070,7 @@ $('exType').onchange = e => {
   if ((S.exType.startsWith('sweep') || S.exType.startsWith('tap')) && S.subdiv === 2) { S.subdiv = 3; $('subdiv').value = '3'; }
   buildSeq();
 };
-$('pos').oninput = e => { S.pos = +e.target.value; $('posShow').textContent = 'fret ' + S.pos; buildSeq(); };
+$('pos').oninput = e => { S.pos = posFrets()[+e.target.value]; showPos(); buildSeq(); };
 $('padVol').oninput = () => { if (padBus) padBus.gain.setTargetAtTime(padLevel(), ctx.currentTime, 0.1); };
 function toggle(id, keyName, after) { $(id).onclick = () => { S[keyName] = !S[keyName]; $(id).classList.toggle('on', S[keyName]); if (after) after(); }; }
 toggle('clickOn', 'click');
@@ -1078,6 +1110,8 @@ addEventListener('keydown', e => {
   else if (e.code === 'Enter') { e.preventDefault(); toggleExercise(); }
   else if (e.code === 'ArrowUp') { e.preventDefault(); setBpm(S.bpm + (e.shiftKey ? 5 : 1)); }
   else if (e.code === 'ArrowDown') { e.preventDefault(); setBpm(S.bpm - (e.shiftKey ? 5 : 1)); }
+  else if (e.code === 'ArrowRight') { e.preventDefault(); stepPos(1); } // próxima posição da escala
+  else if (e.code === 'ArrowLeft') { e.preventDefault(); stepPos(-1); }
   else if (e.code === 'KeyT') tap();
 });
 
@@ -1130,8 +1164,8 @@ const COURSE = [
         goal: "An 8-note riff repeated four times in time at 80 BPM." },
       { id: 'rk2', t: 'The five pentatonic shapes', key: 'E', scale: 'Minor pentatonic', pos: 0, ex: 'scale', view: 'box', bpm: 60, prog: [[0, 'm7', 4]],
         why: "The same five notes repeat in five overlapping shapes up the neck. Knowing them all frees you from one box and lets you solo anywhere.",
-        how: ["Play the run at Position 0, then move the slider up two or three frets at a time until 12, playing the run at each stop.", "In each window, find the tonics first: the shape hangs around them.", "Pick two neighbouring shapes and slide between them on one string."],
-        goal: "Play the run in every position from 0 to 12 without stopping the metronome." },
+        how: ["Play the run in the open position, then press → (or move the Position slider one step) to go to the next shape. Each step starts on the next note of the scale on the low E string.", "In each window, find the tonics first: the shape hangs around them.", "Pick two neighbouring shapes and slide between them on one string."],
+        goal: "Play all five positions in a row, from the open position up to the 12th fret, without stopping the metronome." },
       { id: 'rk3', t: 'Natural minor for melodic solos', key: 'E', scale: 'Aeolian (Natural minor)', pos: 7, ex: 'scale', bpm: 60, prog: [[0, 'm', 2], [8, '', 1], [10, '', 1]],
         why: "Add the 2 (F#) and the b6 (C) to the pentatonic and you get natural minor, the sound of epic rock ballads. The b6 is the emotional note.",
         how: ["Find the 2 and the b6: the two notes the pentatonic was missing.", "Over C (the bVI), land on C or E.", "Over D (the bVII), land on D or F#."],
@@ -1247,7 +1281,7 @@ const COURSE = [
         goal: "G–C–D–G clean at 60 BPM." },
       { id: 'tp5', t: 'Diminished 7: the shape that repeats', key: 'A', scale: 'Harmonic minor', pos: 4, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[11, 'dim7', 1], [2, 'dim7', 1], [5, 'dim7', 1], [0, 'm', 1]],
         why: "A diminished 7 chord is four notes a minor third apart, so G#dim7, Bdim7 and Ddim7 have the same four notes: one tapping shape covers all three, only the bass changes. Resolve to Am at the end.",
-        how: ["Watch the fretboard: the shape does not move while the chord name changes.", "Move the Position slider up three frets: the same shape appears again, because the chord repeats every minor third.", "Listen for the tension resolving on Am."],
+        how: ["Watch the fretboard: the shape does not move while the chord name changes.", "Press → until the position is three frets higher: the same shape appears again, because the chord repeats every minor third.", "Listen for the tension resolving on Am."],
         goal: "The three dim7 shapes and the Am resolution at 60 BPM." },
       { id: 'tp6', t: '7th chords: ii–V–I', key: 'C', scale: 'Ionian (Major)', pos: 5, ex: 'tap', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: IIVI,
         why: "Tapping three notes of each 7th chord (Dm7, G7, Cmaj7) gives a smooth, jazzy cascade over the most common progression in jazz.",
@@ -1401,7 +1435,7 @@ const PLAYERS = {
       { id: 'becker', name: 'Jason Becker', from: 'Cacophony · Perpetual Burn · Serrana', style: "Five- and six-string sweep arpeggios across the whole neck, minor triads in every inversion, harmonic minor and Phrygian dominant runs, and fast diminished 7 arpeggios. Serrana is the showcase of the sweeps.",
         items: [
           { t: 'Serrana style: 6-string sweeps', key: 'A', scale: 'Harmonic minor', pos: 5, ex: 'sweep6', src: -3, view: 'chord', bpm: 35, subdiv: 3, prog: [[0, 'm', 1], [5, 'm', 1], [7, '', 1], [0, 'm', 1]], note: "Six-string sweeps through Am, Dm and E, the kind of wide arpeggio Serrana is famous for. The tune's actual key and changes are not reproduced here." },
-          { t: 'A minor in different positions', key: 'A', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 4]], note: "Becker moves the same chord through several five-string shapes. This loads the shape that starts on the 5th (E, 7th fret of the A string); move the Position slider to 12 for the shape that starts on the root (A, 12th fret)." },
+          { t: 'A minor in different positions', key: 'A', scale: 'Aeolian (Natural minor)', pos: 5, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, 'm', 4]], note: "Becker moves the same chord through several five-string shapes. This loads the shape that starts on the 5th (E, 7th fret of the A string); press → until the position shows fret 12 for the shape that starts on the root (A, 12th fret)." },
           { t: 'E minor sweeps and diminished 7', key: 'E', scale: 'Harmonic minor', pos: 12, ex: 'sweep5', src: -3, view: 'chord', bpm: 35, subdiv: 3, prog: [[0, 'm', 2], [11, 'dim7', 2]], note: "High E minor sweeps, then D#dim7, the VII chord of E harmonic minor, pulling back to Em." },
           { t: 'Major through inversions, then the relative minor', key: 'A', scale: 'Ionian (Major)', pos: 9, ex: 'sweep5', src: -3, view: 'chord', bpm: 40, subdiv: 3, prog: [[0, '', 2], [9, 'm', 2]], note: "A major arpeggios moving up the neck, then F#m, the relative minor: the idea Becker uses in Altitudes." },
           { t: 'Phrygian dominant runs', key: 'E', scale: 'Phrygian dominant', pos: 5, ex: 'scale', pattern: 4, bpm: 50, subdiv: 4, prog: [[0, '7', 2], [5, 'm', 2]], note: "E Phrygian dominant over E7 to Am: the neoclassical runs between his arpeggios." },
@@ -1606,7 +1640,7 @@ function loadLesson(L) {
   S.lesson = L;
   S.key = NOTES.indexOf(L.key); $('key').value = S.key;
   const idx = SCALES.findIndex(s => s.name === L.scale); S.scale = SCALES[idx]; $('scale').value = idx;
-  S.pos = L.pos; $('pos').value = L.pos; $('posShow').textContent = 'fret ' + L.pos;
+  S.pos = L.pos; // refreshMusic encaixa na posição da escala mais próxima
   S.exType = L.ex; $('exType').value = L.ex; syncExUi();
   S.pattern = L.pattern || 1; $('pattern').value = String(S.pattern);
   S.degree = L.src !== undefined ? L.src : -2;
@@ -1694,7 +1728,7 @@ function setTab(t) {
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
 
-buildBeats(); drawTheory(); buildSeq();
+buildBeats(); syncPos(); drawTheory(); buildSeq();
 if (courseSel && findLesson(courseSel)) loadLesson(findLesson(courseSel).L); // volta para a última lição aberta
 setTab(store.get('tab', 'theory'));
 requestAnimationFrame(draw);
